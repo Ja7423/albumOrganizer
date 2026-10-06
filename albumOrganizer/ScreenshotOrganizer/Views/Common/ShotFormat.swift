@@ -1,4 +1,5 @@
 import Foundation
+import ScreenshotKit
 
 enum ShotFormat {
     private static let locale = Locale(identifier: "zh_Hant_TW")
@@ -25,5 +26,24 @@ enum ShotFormat {
     /// "2026年10月5日 18:42"
     static func fullDate(_ date: Date) -> String {
         full.string(from: date)
+    }
+
+    /// How the screenshot got into its folder, e.g. "自動分類 · 規則".
+    static func placement(_ placement: Placement) -> String {
+        switch placement {
+        case .pending: return "處理中…"
+        case .user: return "手動放入"
+        case .auto(let auto):
+            guard let source = auto.source else { return "自動分類 · 無法判斷" }
+            return "自動分類 · " + sourceName(source)
+        }
+    }
+
+    private static func sourceName(_ source: ClassifierSource) -> String {
+        switch source {
+        case .rule: return "規則"
+        case .knn: return "相似截圖"
+        case .llm: return "Apple Intelligence"
+        }
     }
 }

@@ -10,7 +10,7 @@ public struct SearchHit: Hashable, Identifiable, Sendable {
 }
 
 extension Library {
-    /// Finds screenshots whose recognized text, tags or title contain `query`.
+    /// Finds screenshots whose recognized text, tags (including feature tags) or title contain `query`.
     /// Text matches carry the highlighted line; tag/title matches show the first line.
     public func search(_ query: String) -> [SearchHit] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -24,7 +24,7 @@ extension Library {
                 if prefix.count > 12 { prefix = "…" + prefix.suffix(12) }
                 return SearchHit(shotID: shot.id, prefix: prefix, match: String(block.text[r]), suffix: String(block.text[r.upperBound...]))
             }
-            let meta = shot.tags + [shot.title]
+            let meta = shot.tags + shot.featureTags.map(\.displayName) + [shot.title]
             guard meta.contains(where: { $0.range(of: q, options: options) != nil }) else { return nil }
             return SearchHit(shotID: shot.id, prefix: shot.blocks.first?.text ?? "", match: "", suffix: "")
         }

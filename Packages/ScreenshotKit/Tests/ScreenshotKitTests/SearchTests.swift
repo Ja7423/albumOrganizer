@@ -1,7 +1,7 @@
 import XCTest
 import ScreenshotKit
 
-final class SearchAndSuggestTests: XCTestCase {
+final class SearchTests: XCTestCase {
     private func library() -> Library {
         var lib = Library()
         lib.sync(with: [
@@ -49,18 +49,10 @@ final class SearchAndSuggestTests: XCTestCase {
         XCTAssertTrue(library().search("  ").isEmpty)
     }
 
-    func testSuggesterCategories() {
-        XCTAssertEqual(TagSuggester.suggest(for: "台北市信義區松高路 19 號 B2"), ["地址"])
-        XCTAssertEqual(TagSuggester.suggest(for: "雙 11 限時優惠\nSAVE20\n全館 8 折"), ["優惠碼"])
-        XCTAssertEqual(TagSuggester.suggest(for: "第 3 章 · 第 27 頁"), ["書摘"])
-        XCTAssertEqual(TagSuggester.suggest(for: "func retry() async throws {\n  try await x\n}"), ["程式碼"])
-        XCTAssertEqual(TagSuggester.suggest(for: "台北 TPE → 東京 NRT\n航班 BR 198\n座位 32K"), ["票券"])
-    }
-
-    func testSuggesterSkipsExistingTagsAndCapsCount() {
-        XCTAssertEqual(TagSuggester.suggest(for: "密碼 1234", excluding: ["密碼"]), [])
-        let noisy = "發票 合計 航班 密碼 會議 待辦 餐廳"
-        XCTAssertEqual(TagSuggester.suggest(for: noisy).count, TagSuggester.maxSuggestions)
-        XCTAssertEqual(TagSuggester.suggest(for: "   "), [])
+    func testSearchMatchesFeatureTags() {
+        var lib = library()
+        let input = lib.classifierInput(for: "map")!
+        lib.applyClassification("map", verdict: nil, features: FeatureDetector.detect(input.signals), version: 1)
+        XCTAssertEqual(lib.search("含地址").map(\.shotID), ["map"])
     }
 }

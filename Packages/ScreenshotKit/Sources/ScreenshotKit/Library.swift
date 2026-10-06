@@ -3,14 +3,15 @@ import Foundation
 /// Which screenshots a grid shows.
 public enum Scope: Hashable, Sendable {
     case all
+    case processing
     case unsorted
-    case suggested
     case tag(String)
+    case feature(FeatureTag)
     case folder(UUID)
 }
 
 /// Everything the app stores. Pure value type: every rule about folders, tags and
-/// suggestions lives here so it can be tested without Photos or Vision.
+/// classification lives here so it can be tested without Photos or Vision.
 public struct Library: Codable, Hashable, Sendable {
     /// Newest first.
     public private(set) var shots: [Shot]
@@ -19,12 +20,45 @@ public struct Library: Codable, Hashable, Sendable {
     /// Screenshots the user removed from the app. The photo stays in the album;
     /// syncing must not bring it back.
     public private(set) var hiddenShotIDs: Set<String>
+    /// Built-in categories the user deleted. Their folders are not recreated and nothing is classified into them.
+    public private(set) var deletedBuiltIns: Set<BuiltInCategory>
 
-    public init(shots: [Shot] = [], folders: [Folder] = [], tags: [String] = [], hiddenShotIDs: Set<String> = []) {
+    public init(
+        shots: [Shot] = [],
+        folders: [Folder] = [],
+        tags: [String] = [],
+        hiddenShotIDs: Set<String> = [],
+        deletedBuiltIns: Set<BuiltInCategory> = []
+    ) {
         self.shots = shots.sorted { $0.createdAt > $1.createdAt }
         self.folders = folders
         self.tags = tags
         self.hiddenShotIDs = hiddenShotIDs
+        self.deletedBuiltIns = deletedBuiltIns
+        addMissingBuiltInFolders()
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case shots, folders, tags, hiddenShotIDs, deletedBuiltIns
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            shots: try c.decode([Shot].self, forKey: .shots),
+            folders: try c.decode([Folder].self, forKey: .folders),
+            tags: try c.decode([String].self, forKey: .tags),
+            hiddenShotIDs: try c.decode(Set<String>.self, forKey: .hiddenShotIDs),
+            deletedBuiltIns: try c.decode(Set<BuiltInCategory>.self, forKey: .deletedBuiltIns)
+        )
+    }
+
+    /// Creates a folder for every built-in category that has none and was not deleted.
+    private mutating func addMissingBuiltInFolders() {
+        let present = Set(folders.compactMap(\.builtIn))
+        for category in BuiltInCategory.allCases where !present.contains(category) && !deletedBuiltIns.contains(category) {
+            folders.append(Folder(name: category.defaultName, builtIn: category))
+        }
     }
 
     // MARK: - Lookup
@@ -47,9 +81,10 @@ public struct Library: Codable, Hashable, Sendable {
     public func shots(in scope: Scope) -> [Shot] {
         switch scope {
         case .all: return shots
-        case .unsorted: return shots.filter { $0.folderID == nil }
-        case .suggested: return shots.filter { !$0.suggestions.isEmpty }
+        case .processing: return shots.filter(\.isProcessing)
+        case .unsorted: return shots.filter(\.isUnsorted)
         case .tag(let t): return shots.filter { $0.tags.contains(t) }
+        case .feature(let f): return shots.filter { $0.featureTags.contains(f) }
         case .folder(let id): return shots.filter { $0.folderID == id }
         }
     }
@@ -59,13 +94,13 @@ public struct Library: Codable, Hashable, Sendable {
     }
 
     public var pendingRecognitionIDs: [String] {
-        shots.filter { $0.recognition == .pending }.map(\.id)
+        shots.filter(\.needsRecognition).map(\.id)
     }
 
-    /// Distinct suggested tag names across all screenshots, in first-seen order.
-    public var suggestedTagNames: [String] {
-        var seen = Set<String>()
-        return shots.flatMap(\.suggestions).filter { seen.insert($0).inserted }
+    /// Feature tags at least one screenshot carries, in declaration order.
+    public var presentFeatureTags: [FeatureTag] {
+        let present = shots.reduce(into: Set<FeatureTag>()) { $0.formUnion($1.featureTags) }
+        return FeatureTag.allCases.filter(present.contains)
     }
 
     // MARK: - Photos sync
@@ -96,24 +131,29 @@ public struct Library: Codable, Hashable, Sendable {
         return SyncResult(added: fresh.map(\.id), removed: removed)
     }
 
-    /// Stores recognized text and proposes tags from it.
-    public mutating func setRecognition(_ id: String, blocks: [TextBlock]?) {
+    /// Stores recognized text and barcodes; `nil` blocks record a failed attempt. Classification happens separately.
+    public mutating func setRecognition(_ id: String, blocks: [TextBlock]?, barcodes: [String] = []) {
         update([id]) { shot in
             guard let blocks else {
                 shot.recognition = .failed
+                shot.recognitionAttempts += 1
                 return
             }
             shot.blocks = blocks
+            shot.barcodes = barcodes
             shot.recognition = .done
-            shot.suggestions = TagSuggester.suggest(for: shot.allText, excluding: shot.tags)
         }
     }
 
     // MARK: - Folders
 
     /// Moves screenshots into a folder (`nil` = 未分類). A screenshot is only ever in one folder.
+    /// Any manual move locks the screenshot against automatic classification.
     public mutating func move(_ ids: [String], to folderID: UUID?) {
-        update(ids) { $0.folderID = folderID }
+        update(ids) { shot in
+            shot.folderID = folderID
+            shot.placement = .user
+        }
     }
 
     @discardableResult
@@ -126,10 +166,25 @@ public struct Library: Codable, Hashable, Sendable {
         return folder
     }
 
+    /// Returns `false` when the name is empty or another folder already uses it.
+    @discardableResult
+    public mutating func renameFolder(_ id: UUID, to raw: String) -> Bool {
+        let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, !folders.contains(where: { $0.name == name && $0.id != id }),
+              let index = folders.firstIndex(where: { $0.id == id }) else { return false }
+        folders[index].name = name
+        return true
+    }
+
+    /// Screenshots the user placed go to 未分類 and stay locked; automatic ones are classified again.
+    /// A deleted built-in folder is remembered so it is neither recreated nor classified into.
     public mutating func deleteFolder(_ id: UUID) {
-        folders.removeAll { $0.id == id }
+        guard let index = folders.firstIndex(where: { $0.id == id }) else { return }
+        if let category = folders[index].builtIn { deletedBuiltIns.insert(category) }
+        folders.remove(at: index)
         for i in shots.indices where shots[i].folderID == id {
             shots[i].folderID = nil
+            if shots[i].placement != .user { shots[i].placement = .pending }
         }
     }
 
@@ -171,7 +226,6 @@ public struct Library: Codable, Hashable, Sendable {
         guard let t = createTag(raw) else { return }
         update(ids) { shot in
             if !shot.tags.contains(t) { shot.tags.append(t) }
-            shot.suggestions.removeAll { $0 == t }
         }
     }
 
@@ -179,23 +233,12 @@ public struct Library: Codable, Hashable, Sendable {
         update([id]) { $0.tags.removeAll { $0 == t } }
     }
 
-    public mutating func acceptSuggestion(_ t: String, for id: String) {
-        addTag(t, to: [id])
-    }
-
-    /// Applies every pending suggestion. Returns how many screenshots changed.
-    @discardableResult
-    public mutating func applyAllSuggestions() -> Int {
-        var changed = 0
-        for i in shots.indices where !shots[i].suggestions.isEmpty {
-            for t in shots[i].suggestions {
-                if !tags.contains(t) { tags.append(t) }
-                if !shots[i].tags.contains(t) { shots[i].tags.append(t) }
-            }
-            shots[i].suggestions = []
-            changed += 1
+    /// Removes an automatic tag and remembers not to add it again.
+    public mutating func dismissFeatureTag(_ tag: FeatureTag, from id: String) {
+        update([id]) { shot in
+            shot.featureTags.remove(tag)
+            shot.dismissedFeatureTags.insert(tag)
         }
-        return changed
     }
 
     // MARK: - Removal
@@ -209,7 +252,7 @@ public struct Library: Codable, Hashable, Sendable {
 
     // MARK: - Helpers
 
-    private mutating func update(_ ids: [String], _ body: (inout Shot) -> Void) {
+    mutating func update(_ ids: [String], _ body: (inout Shot) -> Void) {
         let set = Set(ids)
         for i in shots.indices where set.contains(shots[i].id) {
             body(&shots[i])

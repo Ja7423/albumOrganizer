@@ -9,6 +9,6 @@ let package = Package(
     ],
     targets: [
         .target(name: "ScreenshotKit"),
-        .testTarget(name: "ScreenshotKitTests", dependencies: ["ScreenshotKit"])
+        .testTarget(name: "ScreenshotKitTests", dependencies: ["ScreenshotKit"], resources: [.process("Fixtures")])
     ]
 )

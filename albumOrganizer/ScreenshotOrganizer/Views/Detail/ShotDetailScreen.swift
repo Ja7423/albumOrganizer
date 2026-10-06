@@ -175,14 +175,18 @@ struct ShotDetailScreen: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 Button { ui.present(.move, for: .detail) } label: {
-                    Image(systemName: "folder").font(.system(size: 14))
-                    Text(store.library.folderName(shot.folderID))
+                    Image(systemName: shot.autoPlacement?.source == nil ? "folder" : "sparkles").font(.system(size: 14))
+                    Text(shot.isProcessing ? "處理中" : store.library.folderName(shot.folderID))
                 }
+                .accessibilityLabel("資料夾：\(store.library.folderName(shot.folderID))，\(ShotFormat.placement(shot.placement))")
                 .buttonStyle(.secondary)
                 .fixedSize()
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
+                        ForEach(FeatureTag.allCases.filter(shot.featureTags.contains), id: \.self) {
+                            TagChip(text: $0.displayName, style: .outline)
+                        }
                         ForEach(shot.tags, id: \.self) { TagChip(text: "#" + $0, style: .accent) }
                         Button { ui.present(.tags, for: .detail) } label: {
                             TagChip(style: .neutral, leadingIcon: "plus")
@@ -198,32 +202,12 @@ struct ShotDetailScreen: View {
                     Image(systemName: expanded ? "chevron.down" : "chevron.up").font(.system(size: 17, weight: .medium))
                 }
                 .buttonStyle(IconButtonStyle())
-                .overlay(alignment: .topTrailing) {
-                    if !expanded && !shot.suggestions.isEmpty {
-                        Circle().fill(Palette.accent).frame(width: 6, height: 6).offset(x: -6, y: 6)
-                    }
-                }
                 .accessibilityLabel(expanded ? "收起" : "更多")
             }
 
             if expanded {
-                if !shot.suggestions.isEmpty {
-                    SuggestionLabel().padding(.top, 14)
-                    FlowLayout {
-                        ForEach(shot.suggestions, id: \.self) { tag in
-                            Button {
-                                store.mutate { $0.acceptSuggestion(tag, for: shot.id) }
-                                ui.showToast("已加上 #\(tag)")
-                            } label: {
-                                TagChip(text: tag, style: .outline, leadingIcon: "plus")
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.top, 8)
-                }
-
                 VStack(spacing: 0) {
+                    MetaRow(key: "分類方式", value: ShotFormat.placement(shot.placement))
                     MetaRow(key: "截圖時間", value: ShotFormat.fullDate(shot.createdAt))
                     MetaRow(key: "尺寸", value: "\(shot.pixelWidth) × \(shot.pixelHeight)")
                     MetaRow(key: "文字辨識", value: recognitionSummary(shot))
@@ -251,7 +235,7 @@ struct ShotDetailScreen: View {
     private func recognitionSummary(_ shot: Shot) -> String {
         switch shot.recognition {
         case .pending: return "辨識中…"
-        case .failed: return "無法辨識"
+        case .failed: return shot.needsRecognition ? "辨識失敗，稍後重試" : "無法辨識"
         case .done:
             guard !shot.blocks.isEmpty else { return "沒有文字" }
             let languages = shot.languageSummary

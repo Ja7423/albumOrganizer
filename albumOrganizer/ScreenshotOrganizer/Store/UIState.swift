@@ -12,8 +12,10 @@ final class UIState {
     /// Pushed grids from the 資料夾 and 標籤 tabs.
     enum Route: Hashable {
         case folder(UUID)
+        case processing
         case unsorted
         case tag(String)
+        case feature(FeatureTag)
     }
 
     enum Sheet: Equatable { case move, tags }
@@ -22,6 +24,7 @@ final class UIState {
 
     enum Dialog: Equatable {
         case newFolder(moveAfter: Bool)
+        case renameFolder(UUID)
         case newTag
     }
 

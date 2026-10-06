@@ -134,9 +134,9 @@ struct MetaRow: View {
     }
 }
 
-/// Small sparkles kicker used before suggestion chips: "依圖中文字建議".
-struct SuggestionLabel: View {
-    var text = "依圖中文字建議"
+/// Kicker over things the app added on its own.
+struct AutoLabel: View {
+    var text = "自動偵測"
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: "sparkles").font(.system(size: 12))

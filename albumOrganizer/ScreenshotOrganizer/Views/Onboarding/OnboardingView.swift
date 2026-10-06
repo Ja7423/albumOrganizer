@@ -1,7 +1,8 @@
 import SwiftUI
 import UIKit
+import ScreenshotKit
 
-/// 首次匯入: welcome → photo permission → import with text recognition.
+/// 首次匯入: welcome → photo permission → import with text recognition and classification.
 struct OnboardingView: View {
     @Environment(LibraryStore.self) private var store
 
@@ -53,7 +54,7 @@ private struct WelcomeStep: View {
     private let features = [
         Feature(id: "01", title: "資料夾與標籤", detail: "每張截圖放進一個資料夾，再加上多個標籤。"),
         Feature(id: "02", title: "複製圖中文字", detail: "一鍵複製全部，或在圖上點選需要的段落。"),
-        Feature(id: "03", title: "自動建議標籤", detail: "依截圖內容建議分類，確認後才套用。")
+        Feature(id: "03", title: "自動分類", detail: "依截圖內容自動放進資料夾，隨時可以改。")
     ]
 
     var body: some View {
@@ -149,7 +150,7 @@ private struct PermissionStep: View {
 private struct ImportStep: View {
     @Environment(LibraryStore.self) private var store
 
-    private let steps = ["掃描「螢幕截圖」相簿", "辨識圖中文字", "產生標籤建議"]
+    private let steps = ["掃描「螢幕截圖」相簿", "辨識圖中文字", "自動分類"]
 
     var body: some View {
         let p = store.importProgress
@@ -168,6 +169,14 @@ private struct ImportStep: View {
                 Text("張截圖").font(Typeface.body(16))
             }
             .padding(.top, 28)
+
+            if done {
+                let summary = store.library.classificationSummary
+                Text("已分類 \(summary.classified) 張，未分類 \(summary.unsorted) 張")
+                    .font(Typeface.body(15))
+                    .foregroundStyle(Palette.neutral700)
+                    .padding(.top, 4)
+            }
 
             GeometryReader { geo in
                 Rectangle().fill(Palette.neutral300)

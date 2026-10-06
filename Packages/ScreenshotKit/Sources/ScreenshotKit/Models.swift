@@ -43,13 +43,20 @@ public struct Shot: Codable, Hashable, Identifiable, Sendable {
     public var createdAt: Date
     public var pixelWidth: Int
     public var pixelHeight: Int
-    /// A screenshot lives in at most one folder; `nil` means 未分類.
+    /// A screenshot lives in at most one folder; `nil` means 未分類 (or 處理中 while `placement` is pending).
     public var folderID: UUID?
+    public var placement: Placement
+    /// Tags the user added.
     public var tags: [String]
-    /// Tags proposed from the recognized text, waiting for the user to confirm.
-    public var suggestions: [String]
+    /// Tags the app added from what it detected, minus the ones the user removed.
+    public var featureTags: Set<FeatureTag>
+    /// Feature tags the user removed; never added back.
+    public var dismissedFeatureTags: Set<FeatureTag>
     public var blocks: [TextBlock]
+    /// Payloads of QR codes and barcodes found on the screenshot.
+    public var barcodes: [String]
     public var recognition: RecognitionState
+    public var recognitionAttempts: Int
 
     public init(
         id: String,
@@ -57,20 +64,51 @@ public struct Shot: Codable, Hashable, Identifiable, Sendable {
         pixelWidth: Int,
         pixelHeight: Int,
         folderID: UUID? = nil,
+        placement: Placement = .pending,
         tags: [String] = [],
-        suggestions: [String] = [],
+        featureTags: Set<FeatureTag> = [],
+        dismissedFeatureTags: Set<FeatureTag> = [],
         blocks: [TextBlock] = [],
-        recognition: RecognitionState = .pending
+        barcodes: [String] = [],
+        recognition: RecognitionState = .pending,
+        recognitionAttempts: Int = 0
     ) {
         self.id = id
         self.createdAt = createdAt
         self.pixelWidth = pixelWidth
         self.pixelHeight = pixelHeight
         self.folderID = folderID
+        self.placement = placement
         self.tags = tags
-        self.suggestions = suggestions
+        self.featureTags = featureTags
+        self.dismissedFeatureTags = dismissedFeatureTags
         self.blocks = blocks
+        self.barcodes = barcodes
         self.recognition = recognition
+        self.recognitionAttempts = recognitionAttempts
+    }
+
+    /// Failed recognitions are retried up to this many times before the screenshot is treated as textless.
+    public static let maxRecognitionAttempts = 3
+
+    /// Shown under 處理中 until a classifier pass places it.
+    public var isProcessing: Bool { placement == .pending }
+
+    /// The app looked at it and found no folder, or the user put it in 未分類.
+    public var isUnsorted: Bool { folderID == nil && !isProcessing }
+
+    public var needsRecognition: Bool {
+        switch recognition {
+        case .pending: return true
+        case .failed: return recognitionAttempts < Shot.maxRecognitionAttempts
+        case .done: return false
+        }
+    }
+
+    /// Set when the app placed it, `nil` for user placements and pending ones.
+    public var autoPlacement: AutoPlacement? {
+        if case .auto(let auto) = placement { return auto }
+        return nil
     }
 
     public static let fallbackTitle = "螢幕截圖"
@@ -114,10 +152,13 @@ public struct Shot: Codable, Hashable, Identifiable, Sendable {
 public struct Folder: Codable, Hashable, Identifiable, Sendable {
     public let id: UUID
     public var name: String
+    /// Set for folders the app created for a built-in category.
+    public let builtIn: BuiltInCategory?
 
-    public init(id: UUID = UUID(), name: String) {
+    public init(id: UUID = UUID(), name: String, builtIn: BuiltInCategory? = nil) {
         self.id = id
         self.name = name
+        self.builtIn = builtIn
     }
 }
 

@@ -1,4 +1,5 @@
 import Photos
+import PhotosUI
 import UIKit
 import ScreenshotKit
 
@@ -16,6 +17,17 @@ nonisolated final class PhotoLibraryService: NSObject, PHPhotoLibraryChangeObser
 
     var hasAccess: Bool {
         authorizationStatus == .authorized || authorizationStatus == .limited
+    }
+
+    /// Only the photos the user picked are visible.
+    var isLimited: Bool {
+        authorizationStatus == .limited
+    }
+
+    /// Lets the user add more photos to a limited selection; the change observer picks up the result.
+    @MainActor
+    func presentLimitedLibraryPicker(from controller: UIViewController) {
+        PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: controller)
     }
 
     func requestAuthorization() async -> PHAuthorizationStatus {

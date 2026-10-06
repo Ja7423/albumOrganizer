@@ -16,8 +16,10 @@ struct ShotGridScreen: View {
     private var scope: Scope {
         switch route {
         case .folder(let id): return .folder(id)
+        case .processing: return .processing
         case .unsorted: return .unsorted
         case .tag(let t): return .tag(t)
+        case .feature(let f): return .feature(f)
         case nil: return ui.chip
         }
     }
@@ -25,16 +27,18 @@ struct ShotGridScreen: View {
     private var title: String {
         switch route {
         case .folder(let id): return store.library.folderName(id)
+        case .processing: return "處理中"
         case .unsorted: return Library.unsortedName
         case .tag(let t): return "#" + t
+        case .feature(let f): return f.displayName
         case nil: return "所有截圖"
         }
     }
 
     private var backLabel: String? {
         switch route {
-        case .folder, .unsorted: return "資料夾"
-        case .tag: return "標籤"
+        case .folder, .processing, .unsorted: return "資料夾"
+        case .tag, .feature: return "標籤"
         case nil: return nil
         }
     }
@@ -74,6 +78,7 @@ struct ShotGridScreen: View {
                 }
 
                 if route == nil {
+                    LimitedAccessBanner()
                     chips
                 }
 
@@ -101,7 +106,7 @@ struct ShotGridScreen: View {
 
     private var emptyMessage: String {
         if store.library.shots.isEmpty {
-            return store.pendingRecognitionCount > 0 ? "正在整理截圖…" : "相簿裡還沒有螢幕截圖。截圖後會自動出現在這裡。"
+            return store.processingCount > 0 ? "正在整理截圖…" : "相簿裡還沒有螢幕截圖。截圖後會自動出現在這裡。"
         }
         return "這裡還沒有截圖。到「截圖」選取後，用「移到資料夾」或「標籤」整理進來。"
     }
@@ -113,7 +118,8 @@ struct ShotGridScreen: View {
     }
 
     private var chips: some View {
-        let defs = [ChipDef(scope: .all, label: "全部"), ChipDef(scope: .unsorted, label: "未分類"), ChipDef(scope: .suggested, label: "有建議")]
+        let defs = [ChipDef(scope: .all, label: "全部"), ChipDef(scope: .unsorted, label: "未分類")]
+            + store.library.presentFeatureTags.map { ChipDef(scope: .feature($0), label: $0.displayName) }
             + store.library.tags.map { ChipDef(scope: .tag($0), label: "#" + $0) }
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
@@ -159,16 +165,6 @@ struct ShotGridScreen: View {
                             .background(selected ? Palette.accent : Palette.neutral900.opacity(0.25))
                             .overlay(Rectangle().strokeBorder(selected ? Palette.accent : Palette.bg, lineWidth: 1.5))
                             .padding(5)
-                    }
-                }
-                .overlay(alignment: .bottomLeading) {
-                    if !ui.selecting && !shot.suggestions.isEmpty {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 11))
-                            .foregroundStyle(Palette.accent)
-                            .frame(width: 22, height: 22)
-                            .background(Palette.bg)
-                            .padding(4)
                     }
                 }
         }

@@ -140,18 +140,19 @@ private struct TagSheetContent: View {
     var body: some View {
         let lib = store.library
         let targets = ui.sheetTargets.compactMap { lib.shot($0) }
-        let suggestions = ui.sheetContext == .detail ? (targets.first?.suggestions ?? []) : []
+        let detailShot = ui.sheetContext == .detail ? targets.first : nil
+        let features = FeatureTag.allCases.filter { detailShot?.featureTags.contains($0) == true }
 
         VStack(alignment: .leading, spacing: 0) {
-            if !suggestions.isEmpty {
-                SuggestionLabel().padding(.top, 14)
+            if let detailShot, !features.isEmpty {
+                AutoLabel(text: "自動偵測 · 點一下移除").padding(.top, 14)
                 FlowLayout {
-                    ForEach(suggestions, id: \.self) { tag in
+                    ForEach(features, id: \.self) { feature in
                         Button {
-                            store.mutate { $0.acceptSuggestion(tag, for: targets[0].id) }
-                            ui.showToast("已加上 #\(tag)")
+                            store.mutate { $0.dismissFeatureTag(feature, from: detailShot.id) }
+                            ui.showToast("已移除「\(feature.displayName)」")
                         } label: {
-                            TagChip(text: tag, style: .outline, size: .large, leadingIcon: "plus")
+                            TagChip(text: feature.displayName, style: .outline, size: .large, leadingIcon: "xmark")
                         }
                         .buttonStyle(.plain)
                     }
@@ -198,7 +199,7 @@ private struct TagSheetContent: View {
 
 // MARK: - Name dialog
 
-/// `.dialog` for 新增資料夾 / 新增標籤.
+/// `.dialog` for 新增資料夾 / 重新命名資料夾 / 新增標籤.
 struct NameDialog: View {
     @Environment(LibraryStore.self) private var store
     @Environment(UIState.self) private var ui
@@ -208,6 +209,19 @@ struct NameDialog: View {
 
     private var isTag: Bool { kind == .newTag }
 
+    private var title: String {
+        switch kind {
+        case .newTag: return "新增標籤"
+        case .newFolder: return "新增資料夾"
+        case .renameFolder: return "重新命名資料夾"
+        }
+    }
+
+    private var confirmLabel: String {
+        if case .renameFolder = kind { return "儲存" }
+        return "建立"
+    }
+
     var body: some View {
         ZStack {
             Palette.neutral900.opacity(0.5)
@@ -215,7 +229,7 @@ struct NameDialog: View {
                 .onTapGesture { ui.dialog = nil }
 
             VStack(alignment: .leading, spacing: Space.s3) {
-                Text(isTag ? "新增標籤" : "新增資料夾").font(Typeface.head(20))
+                Text(title).font(Typeface.head(20))
                 VStack(alignment: .leading, spacing: 5) {
                     Text("名稱").font(Typeface.body(12)).foregroundStyle(Palette.text.opacity(0.7))
                     TextField(isTag ? "例如：發票" : "例如：家用、報稅", text: $name)
@@ -227,7 +241,7 @@ struct NameDialog: View {
                 HStack(spacing: Space.s2) {
                     Spacer()
                     Button("取消") { ui.dialog = nil }.buttonStyle(.secondary)
-                    Button("建立", action: confirm)
+                    Button(confirmLabel, action: confirm)
                         .buttonStyle(.primary)
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
@@ -239,7 +253,10 @@ struct NameDialog: View {
             .overlay(RoundedRectangle(cornerRadius: Radius.lg).strokeBorder(Palette.divider, lineWidth: 1))
             .padding(Space.s4)
         }
-        .onAppear { focused = true }
+        .onAppear {
+            if case .renameFolder(let id) = kind { name = store.library.folderName(id) }
+            focused = true
+        }
     }
 
     private func confirm() {
@@ -250,6 +267,15 @@ struct NameDialog: View {
             guard let created else { return }
             ui.dialog = nil
             ui.showToast("已建立 #\(created)")
+        case .renameFolder(let id):
+            var renamed = false
+            store.mutate { renamed = $0.renameFolder(id, to: name) }
+            guard renamed else {
+                ui.showToast("已經有同名的資料夾")
+                return
+            }
+            ui.dialog = nil
+            ui.showToast("已重新命名為「\(store.library.folderName(id))」")
         case .newFolder(let moveAfter):
             var folder: Folder?
             store.mutate { folder = $0.createFolder(named: name) }

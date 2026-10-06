@@ -17,13 +17,26 @@ struct FoldersScreen: View {
                     .buttonStyle(.primary)
                 }
 
-                FolderRow(name: Library.unsortedName, shots: lib.shots(in: .unsorted), route: .unsorted)
+                LimitedAccessBanner()
+
+                let processing = lib.shots(in: .processing)
+                if !processing.isEmpty {
+                    FolderRow(name: "處理中", shots: processing, route: .processing, icon: "hourglass")
+                }
+                FolderRow(name: Library.unsortedName, shots: lib.shots(in: .unsorted), route: .unsorted, icon: "tray")
                 ForEach(lib.folders) { folder in
-                    FolderRow(name: folder.name, shots: lib.shots(in: .folder(folder.id)), route: .folder(folder.id))
+                    let shots = lib.shots(in: .folder(folder.id))
+                    FolderRow(name: folder.name, shots: shots, route: .folder(folder.id),
+                              isDimmed: shots.isEmpty && folder.builtIn != nil)
                         .contextMenu {
+                            Button {
+                                ui.dialog = .renameFolder(folder.id)
+                            } label: {
+                                Label("重新命名", systemImage: "pencil")
+                            }
                             Button(role: .destructive) {
-                                store.mutate { $0.deleteFolder(folder.id) }
-                                ui.showToast("已刪除資料夾「\(folder.name)」，截圖移到未分類")
+                                store.deleteFolder(folder.id)
+                                ui.showToast("已刪除資料夾「\(folder.name)」，自動分類的截圖會重新分類")
                             } label: {
                                 Label("刪除資料夾", systemImage: "trash")
                             }
@@ -43,6 +56,9 @@ private struct FolderRow: View {
     let name: String
     let shots: [Shot]
     let route: UIState.Route
+    var icon = "folder"
+    /// Empty built-in folders stay listed so screenshots can be moved in, but recede.
+    var isDimmed = false
 
     var body: some View {
         NavigationLink(value: route) {
@@ -52,7 +68,7 @@ private struct FolderRow: View {
                         if let cover = shots.first {
                             AssetImage(id: cover.id, targetSize: CGSize(width: 52, height: 52), alignment: .top)
                         } else {
-                            Image(systemName: "folder")
+                            Image(systemName: icon)
                                 .font(.system(size: 21))
                                 .foregroundStyle(Palette.neutral600)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -75,6 +91,7 @@ private struct FolderRow: View {
                 Hairline()
             }
             .foregroundStyle(Palette.text)
+            .opacity(isDimmed ? 0.5 : 1)
         }
         .buttonStyle(.pressable)
     }
