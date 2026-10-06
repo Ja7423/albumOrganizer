@@ -1,0 +1,97 @@
+import Photos
+import UIKit
+import ScreenshotKit
+
+/// Read-only access to the Screenshots smart album. Photos are never moved or modified.
+nonisolated final class PhotoLibraryService: NSObject, PHPhotoLibraryChangeObserver, @unchecked Sendable {
+    static let shared = PhotoLibraryService()
+
+    private let imageManager = PHCachingImageManager()
+    private var onChange: (@MainActor () -> Void)?
+    private var isObserving = false
+
+    var authorizationStatus: PHAuthorizationStatus {
+        PHPhotoLibrary.authorizationStatus(for: .readWrite)
+    }
+
+    var hasAccess: Bool {
+        authorizationStatus == .authorized || authorizationStatus == .limited
+    }
+
+    func requestAuthorization() async -> PHAuthorizationStatus {
+        await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+    }
+
+    /// Every screenshot the app can see, newest first.
+    func fetchScreenshots() -> [AssetInfo] {
+        let options = PHFetchOptions()
+        options.predicate = NSPredicate(format: "(mediaSubtypes & %ld) != 0", Int(PHAssetMediaSubtype.photoScreenshot.rawValue))
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        let result = PHAsset.fetchAssets(with: .image, options: options)
+        var assets: [AssetInfo] = []
+        assets.reserveCapacity(result.count)
+        result.enumerateObjects { asset, _, _ in
+            assets.append(AssetInfo(
+                id: asset.localIdentifier,
+                createdAt: asset.creationDate ?? .distantPast,
+                pixelWidth: asset.pixelWidth,
+                pixelHeight: asset.pixelHeight
+            ))
+        }
+        return assets
+    }
+
+    func startObserving(_ handler: @escaping @MainActor () -> Void) {
+        onChange = handler
+        guard !isObserving else { return }
+        isObserving = true
+        PHPhotoLibrary.shared().register(self)
+    }
+
+    func photoLibraryDidChange(_ changeInstance: PHChange) {
+        guard let onChange else { return }
+        Task { @MainActor in onChange() }
+    }
+
+    // MARK: - Images
+
+    private func fetchAsset(_ id: String) -> PHAsset? {
+        PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject
+    }
+
+    /// Streams a fast degraded image, then the final one. Cancelling the stream cancels the request.
+    func images(for id: String, targetSize: CGSize, contentMode: PHImageContentMode = .aspectFill) -> AsyncStream<UIImage> {
+        AsyncStream { continuation in
+            guard let asset = fetchAsset(id) else {
+                continuation.finish()
+                return
+            }
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .opportunistic
+            options.resizeMode = .fast
+            options.isNetworkAccessAllowed = true
+            let requestID = imageManager.requestImage(for: asset, targetSize: targetSize, contentMode: contentMode, options: options) { image, info in
+                if let image { continuation.yield(image) }
+                let degraded = (info?[PHImageResultIsDegradedKey] as? Bool) ?? false
+                if !degraded { continuation.finish() }
+            }
+            continuation.onTermination = { [imageManager] _ in
+                imageManager.cancelImageRequest(requestID)
+            }
+        }
+    }
+
+    /// Full-resolution image data for text recognition.
+    func imageData(for id: String) async -> (Data, CGImagePropertyOrientation)? {
+        guard let asset = fetchAsset(id) else { return nil }
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .highQualityFormat
+        options.isNetworkAccessAllowed = true
+        options.version = .current
+        return await withCheckedContinuation { continuation in
+            PHImageManager.default().requestImageDataAndOrientation(for: asset, options: options) { data, _, orientation, _ in
+                continuation.resume(returning: data.map { ($0, orientation) })
+            }
+        }
+    }
+}

@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A99420503075340000D5CBCF /* ScreenshotKit in Frameworks */ = {isa = PBXBuildFile; productRef = A99420523075340000D5CBCF /* ScreenshotKit */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		A9942036307533CF00D5CBCF /* albumOrganizer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = albumOrganizer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -36,6 +40,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A99420503075340000D5CBCF /* ScreenshotKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +83,7 @@
 			);
 			name = albumOrganizer;
 			packageProductDependencies = (
+				A99420523075340000D5CBCF /* ScreenshotKit */,
 			);
 			productName = albumOrganizer;
 			productReference = A9942036307533CF00D5CBCF /* albumOrganizer.app */;
@@ -107,6 +113,9 @@
 			);
 			mainGroup = A994202D307533CF00D5CBCF;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A99420513075340000D5CBCF /* XCLocalSwiftPackageReference "Packages/ScreenshotKit" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A9942037307533CF00D5CBCF /* Products */;
 			projectDirPath = "";
@@ -349,6 +358,20 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A99420513075340000D5CBCF /* XCLocalSwiftPackageReference "Packages/ScreenshotKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/ScreenshotKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A99420523075340000D5CBCF /* ScreenshotKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ScreenshotKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A994202E307533CF00D5CBCF /* Project object */;
 }

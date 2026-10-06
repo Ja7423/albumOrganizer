@@ -63,3 +63,5 @@ playground.xcworkspace
 
 # Swift Package Manager
 # Package.resolved
+# SwiftPM
+.build/
