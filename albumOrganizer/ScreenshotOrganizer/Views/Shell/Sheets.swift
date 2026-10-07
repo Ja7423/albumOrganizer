@@ -1,7 +1,6 @@
 import SwiftUI
 import ScreenshotKit
 
-/// The bottom sheet for 移到資料夾 and 標籤, over a dimmed backdrop.
 struct SheetHost: View {
     @Environment(LibraryStore.self) private var store
     @Environment(UIState.self) private var ui

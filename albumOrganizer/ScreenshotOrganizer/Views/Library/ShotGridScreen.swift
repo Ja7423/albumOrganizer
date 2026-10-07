@@ -148,6 +148,7 @@ struct ShotGridScreen: View {
                 .aspectRatio(1, contentMode: .fit)
                 .overlay { AssetImage(id: shot.id, targetSize: CGSize(width: 124, height: 124), alignment: .top) }
                 .clipped()
+                .contentShape(Rectangle())
                 .overlay {
                     if ui.selecting {
                         Rectangle()

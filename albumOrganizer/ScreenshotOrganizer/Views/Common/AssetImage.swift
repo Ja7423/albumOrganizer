@@ -24,6 +24,9 @@ struct AssetImage: View {
                 }
             }
             .clipped()
+            // `.clipped()` only clips drawing; without this the aspect-fill overflow stays hit-testable
+            // and steals taps from neighbouring grid cells.
+            .contentShape(Rectangle())
             .task(id: "\(id)@\(Int(targetSize.width))x\(Int(targetSize.height))") {
                 guard targetSize.width > 0, targetSize.height > 0 else { return }
                 let pixels = CGSize(width: targetSize.width * scale, height: targetSize.height * scale)
