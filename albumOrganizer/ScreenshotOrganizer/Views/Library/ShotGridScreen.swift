@@ -10,7 +10,6 @@ struct ShotGridScreen: View {
     @Environment(UIState.self) private var ui
     @Environment(\.dismiss) private var dismiss
 
-    private static let cellAspect: CGFloat = 300.0 / 650.0
     private let columns = Array(repeating: GridItem(.flexible(), spacing: Space.s1), count: 3)
 
     private var scope: Scope {
@@ -146,8 +145,8 @@ struct ShotGridScreen: View {
             if ui.selecting { ui.toggleSelection(shot.id) } else { ui.openDetail(shot.id) }
         } label: {
             Color.clear
-                .aspectRatio(Self.cellAspect, contentMode: .fit)
-                .overlay { AssetImage(id: shot.id, targetSize: CGSize(width: 124, height: 268), alignment: .top) }
+                .aspectRatio(1, contentMode: .fit)
+                .overlay { AssetImage(id: shot.id, targetSize: CGSize(width: 124, height: 124), alignment: .top) }
                 .clipped()
                 .overlay {
                     if ui.selecting {
