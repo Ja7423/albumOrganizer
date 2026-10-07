@@ -150,6 +150,21 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(lib.presentFeatureTags, [.qrCode])
     }
 
+    func testEmptyFoldersSortLastAndFollowMoves() {
+        var lib = Library()
+        lib.sync(with: [asset("a", 1)])
+        let receipts = builtInFolder(lib, .receipt)!
+        let last = lib.folders.last!
+        XCTAssertEqual(lib.foldersEmptyLast.map(\.id), lib.folders.map(\.id))
+
+        lib.move(["a"], to: last.id)
+        XCTAssertEqual(lib.foldersEmptyLast.first?.id, last.id)
+        XCTAssertEqual(lib.foldersEmptyLast.dropFirst().map(\.id), lib.folders.dropLast().map(\.id))
+
+        lib.move(["a"], to: receipts.id)
+        XCTAssertEqual(lib.foldersEmptyLast.map(\.id), lib.folders.map(\.id))
+    }
+
     func testManualMoveWinsOverRunningClassification() {
         var lib = Library()
         lib.sync(with: [asset("a", 1)])

@@ -93,6 +93,12 @@ public struct Library: Codable, Hashable, Sendable {
         shots(in: scope).count
     }
 
+    /// Folders in display order: ones holding screenshots first, empty ones last, each group in stored order.
+    public var foldersEmptyLast: [Folder] {
+        let occupied = Set(shots.compactMap(\.folderID))
+        return folders.filter { occupied.contains($0.id) } + folders.filter { !occupied.contains($0.id) }
+    }
+
     public var pendingRecognitionIDs: [String] {
         shots.filter(\.needsRecognition).map(\.id)
     }

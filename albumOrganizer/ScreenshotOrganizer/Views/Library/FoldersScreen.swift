@@ -24,7 +24,7 @@ struct FoldersScreen: View {
                     FolderRow(name: "處理中", shots: processing, route: .processing, icon: "hourglass")
                 }
                 FolderRow(name: Library.unsortedName, shots: lib.shots(in: .unsorted), route: .unsorted, icon: "tray")
-                ForEach(lib.folders) { folder in
+                ForEach(lib.foldersEmptyLast) { folder in
                     let shots = lib.shots(in: .folder(folder.id))
                     FolderRow(name: folder.name, shots: shots, route: .folder(folder.id),
                               isDimmed: shots.isEmpty && folder.builtIn != nil)
