@@ -38,9 +38,8 @@ struct AppShell: View {
             }
             .background(Palette.bg)
 
-            if let id = ui.detailID {
-                ShotDetailScreen(shotID: id)
-                    .id(id)
+            if ui.detail != nil {
+                ShotDetailScreen()
                     .transition(.move(edge: .trailing))
                     .zIndex(20)
             }

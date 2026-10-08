@@ -37,7 +37,11 @@ final class UIState {
     var selecting = false
     var selection: Set<String> = []
 
-    private(set) var detailID: String?
+    /// The open detail page and the screenshots it pages through.
+    private(set) var detail: DetailSession?
+    var detailID: String? {
+        detail?.currentID
+    }
 
     var sheet: Sheet?
     var sheetContext: SheetContext = .detail
@@ -65,12 +69,28 @@ final class UIState {
         if selection.contains(id) { selection.remove(id) } else { selection.insert(id) }
     }
 
-    func openDetail(_ id: String) {
-        withAnimation(Self.pushAnimation) { detailID = id }
+    /// Opens `id` in the detail page, paging through `ids` in that order.
+    func openDetail(_ id: String, in ids: [String]) {
+        withAnimation(Self.pushAnimation) { detail = DetailSession(currentID: id, ids: ids) }
+    }
+
+    /// Follows the pager to another page of the open detail.
+    func showDetailPage(_ id: String) {
+        detail = detail?.moving(to: id)
+    }
+
+    /// Repoints the open detail when its current screenshot was deleted; closes it if none are left.
+    func replaceMissingDetail(in library: Library) {
+        guard let detail else { return }
+        guard let replacement = detail.replacingMissingCurrent(in: library) else {
+            closeDetail()
+            return
+        }
+        self.detail = replacement
     }
 
     func closeDetail() {
-        withAnimation(Self.pushAnimation) { detailID = nil }
+        withAnimation(Self.pushAnimation) { detail = nil }
     }
 
     func present(_ sheet: Sheet, for context: SheetContext) {

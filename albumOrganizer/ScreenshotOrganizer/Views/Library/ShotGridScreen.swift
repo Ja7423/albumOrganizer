@@ -83,7 +83,7 @@ struct ShotGridScreen: View {
 
                 LazyVGrid(columns: columns, spacing: Space.s1) {
                     ForEach(shots) { shot in
-                        cell(shot)
+                        cell(shot, pagingThrough: ids)
                     }
                 }
                 .padding(.top, 8)
@@ -141,10 +141,10 @@ struct ShotGridScreen: View {
         .padding(.horizontal, -16)
     }
 
-    private func cell(_ shot: Shot) -> some View {
+    private func cell(_ shot: Shot, pagingThrough ids: [String]) -> some View {
         let selected = ui.selection.contains(shot.id)
         return Button {
-            if ui.selecting { ui.toggleSelection(shot.id) } else { ui.openDetail(shot.id) }
+            if ui.selecting { ui.toggleSelection(shot.id) } else { ui.openDetail(shot.id, in: ids) }
         } label: {
             Color.clear
                 .aspectRatio(1, contentMode: .fit)
