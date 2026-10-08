@@ -1,5 +1,5 @@
-import XCTest
 import ScreenshotKit
+import XCTest
 
 final class SignalsAndFeaturesTests: XCTestCase {
     private func block(_ text: String, x: Double = 0.1, width: Double = 0.8, y: Double = 0.3) -> TextBlock {
@@ -35,7 +35,7 @@ final class SignalsAndFeaturesTests: XCTestCase {
         let chat = [left("晚餐吃什麼", 0.2), right("火鍋？", 0.3), left("好啊", 0.4), right("七點見", 0.5)]
         XCTAssertTrue(SignalExtractor.extract(blocks: chat, barcodes: []).hasAlternatingBubbles)
 
-        let article = (0..<4).map { block("第 \($0) 段內文", y: 0.2 + Double($0) * 0.1) }
+        let article = (0 ..< 4).map { block("第 \($0) 段內文", y: 0.2 + Double($0) * 0.1) }
         XCTAssertFalse(SignalExtractor.extract(blocks: article, barcodes: []).hasAlternatingBubbles)
     }
 

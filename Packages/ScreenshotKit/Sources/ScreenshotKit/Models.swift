@@ -14,7 +14,9 @@ public struct NormalizedRect: Codable, Hashable, Sendable {
         self.height = height
     }
 
-    public var maxY: Double { y + height }
+    public var maxY: Double {
+        y + height
+    }
 }
 
 /// One recognized line of text and where it sits on the screenshot.
@@ -92,10 +94,14 @@ public struct Shot: Codable, Hashable, Identifiable, Sendable {
     public static let maxRecognitionAttempts = 3
 
     /// Shown under 處理中 until a classifier pass places it.
-    public var isProcessing: Bool { placement == .pending }
+    public var isProcessing: Bool {
+        placement == .pending
+    }
 
     /// The app looked at it and found no folder, or the user put it in 未分類.
-    public var isUnsorted: Bool { folderID == nil && !isProcessing }
+    public var isUnsorted: Bool {
+        folderID == nil && !isProcessing
+    }
 
     public var needsRecognition: Bool {
         switch recognition {
@@ -107,7 +113,7 @@ public struct Shot: Codable, Hashable, Identifiable, Sendable {
 
     /// Set when the app placed it, `nil` for user placements and pending ones.
     public var autoPlacement: AutoPlacement? {
-        if case .auto(let auto) = placement { return auto }
+        if case let .auto(auto) = placement { return auto }
         return nil
     }
 
@@ -136,12 +142,12 @@ public struct Shot: Codable, Hashable, Identifiable, Sendable {
         let text = allText
         var parts: [String] = []
         if text.unicodeScalars.contains(where: Shot.isCJK) { parts.append("繁體中文") }
-        if text.unicodeScalars.contains(where: { ("a"..."z").contains($0) || ("A"..."Z").contains($0) }) { parts.append("英文") }
+        if text.unicodeScalars.contains(where: { ("a" ... "z").contains($0) || ("A" ... "Z").contains($0) }) { parts.append("英文") }
         return parts.joined(separator: " / ")
     }
 
     static func isCJK(_ s: Unicode.Scalar) -> Bool {
-        (0x4E00...0x9FFF).contains(s.value) || (0x3400...0x4DBF).contains(s.value)
+        (0x4E00 ... 0x9FFF).contains(s.value) || (0x3400 ... 0x4DBF).contains(s.value)
     }
 
     static func looksLikeClock(_ s: String) -> Bool {

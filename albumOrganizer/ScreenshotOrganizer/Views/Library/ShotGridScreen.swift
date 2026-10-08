@@ -1,5 +1,5 @@
-import SwiftUI
 import ScreenshotKit
+import SwiftUI
 
 /// The 3-column screenshot grid: the 截圖 tab at the root, or a folder/tag pushed from the other tabs.
 struct ShotGridScreen: View {
@@ -14,22 +14,22 @@ struct ShotGridScreen: View {
 
     private var scope: Scope {
         switch route {
-        case .folder(let id): return .folder(id)
+        case let .folder(id): return .folder(id)
         case .processing: return .processing
         case .unsorted: return .unsorted
-        case .tag(let t): return .tag(t)
-        case .feature(let f): return .feature(f)
+        case let .tag(t): return .tag(t)
+        case let .feature(f): return .feature(f)
         case nil: return ui.chip
         }
     }
 
     private var title: String {
         switch route {
-        case .folder(let id): return store.library.folderName(id)
+        case let .folder(id): return store.library.folderName(id)
         case .processing: return "處理中"
         case .unsorted: return Library.unsortedName
-        case .tag(let t): return "#" + t
-        case .feature(let f): return f.displayName
+        case let .tag(t): return "#" + t
+        case let .feature(f): return f.displayName
         case nil: return "所有截圖"
         }
     }
@@ -83,7 +83,7 @@ struct ShotGridScreen: View {
 
                 LazyVGrid(columns: columns, spacing: Space.s1) {
                     ForEach(shots) { shot in
-                        cell(shot)
+                        cell(shot, pagingThrough: ids)
                     }
                 }
                 .padding(.top, 8)
@@ -113,7 +113,9 @@ struct ShotGridScreen: View {
     private struct ChipDef: Identifiable {
         let scope: Scope
         let label: String
-        var id: String { label }
+        var id: String {
+            label
+        }
     }
 
     private var chips: some View {
@@ -139,10 +141,10 @@ struct ShotGridScreen: View {
         .padding(.horizontal, -16)
     }
 
-    private func cell(_ shot: Shot) -> some View {
+    private func cell(_ shot: Shot, pagingThrough ids: [String]) -> some View {
         let selected = ui.selection.contains(shot.id)
         return Button {
-            if ui.selecting { ui.toggleSelection(shot.id) } else { ui.openDetail(shot.id) }
+            if ui.selecting { ui.toggleSelection(shot.id) } else { ui.openDetail(shot.id, in: ids) }
         } label: {
             Color.clear
                 .aspectRatio(1, contentMode: .fit)

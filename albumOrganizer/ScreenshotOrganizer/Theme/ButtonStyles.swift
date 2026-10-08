@@ -97,11 +97,21 @@ struct PressableStyle: ButtonStyle {
 }
 
 extension ButtonStyle where Self == ClassicalButtonStyle {
-    static var primary: ClassicalButtonStyle { ClassicalButtonStyle(kind: .primary) }
-    static var secondary: ClassicalButtonStyle { ClassicalButtonStyle(kind: .secondary) }
-    static var ghost: ClassicalButtonStyle { ClassicalButtonStyle(kind: .ghost) }
+    static var primary: ClassicalButtonStyle {
+        ClassicalButtonStyle(kind: .primary)
+    }
+
+    static var secondary: ClassicalButtonStyle {
+        ClassicalButtonStyle(kind: .secondary)
+    }
+
+    static var ghost: ClassicalButtonStyle {
+        ClassicalButtonStyle(kind: .ghost)
+    }
 }
 
 extension ButtonStyle where Self == PressableStyle {
-    static var pressable: PressableStyle { PressableStyle() }
+    static var pressable: PressableStyle {
+        PressableStyle()
+    }
 }

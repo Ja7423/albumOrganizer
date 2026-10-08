@@ -37,7 +37,9 @@ struct LimitedAccessBanner: View {
     private static func topViewController() -> UIViewController? {
         let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first { $0.activationState == .foregroundActive }
         var controller = scene?.keyWindow?.rootViewController
-        while let presented = controller?.presentedViewController { controller = presented }
+        while let presented = controller?.presentedViewController {
+            controller = presented
+        }
         return controller
     }
 }

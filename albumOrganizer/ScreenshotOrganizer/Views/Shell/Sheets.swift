@@ -1,5 +1,5 @@
-import SwiftUI
 import ScreenshotKit
+import SwiftUI
 
 struct SheetHost: View {
     @Environment(LibraryStore.self) private var store
@@ -9,7 +9,9 @@ struct SheetHost: View {
 
     private struct SheetHeightKey: PreferenceKey {
         static let defaultValue: CGFloat = 320
-        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+            value = nextValue()
+        }
     }
 
     var body: some View {
@@ -206,7 +208,9 @@ struct NameDialog: View {
     @State private var name = ""
     @FocusState private var focused: Bool
 
-    private var isTag: Bool { kind == .newTag }
+    private var isTag: Bool {
+        kind == .newTag
+    }
 
     private var title: String {
         switch kind {
@@ -253,7 +257,7 @@ struct NameDialog: View {
             .padding(Space.s4)
         }
         .onAppear {
-            if case .renameFolder(let id) = kind { name = store.library.folderName(id) }
+            if case let .renameFolder(id) = kind { name = store.library.folderName(id) }
             focused = true
         }
     }
@@ -266,7 +270,7 @@ struct NameDialog: View {
             guard let created else { return }
             ui.dialog = nil
             ui.showToast("已建立 #\(created)")
-        case .renameFolder(let id):
+        case let .renameFolder(id):
             var renamed = false
             store.mutate { renamed = $0.renameFolder(id, to: name) }
             guard renamed else {
@@ -275,7 +279,7 @@ struct NameDialog: View {
             }
             ui.dialog = nil
             ui.showToast("已重新命名為「\(store.library.folderName(id))」")
-        case .newFolder(let moveAfter):
+        case let .newFolder(moveAfter):
             var folder: Folder?
             store.mutate { folder = $0.createFolder(named: name) }
             guard let folder else { return }
@@ -297,8 +301,7 @@ struct NameDialog: View {
 extension View {
     /// `.input`: hairline-bordered field, accent border on focus.
     func classicalInput(minHeight: CGFloat = 36, fontSize: CGFloat = 14, focused: Bool = false, leadingInset: CGFloat = 10) -> some View {
-        self
-            .font(Typeface.body(fontSize))
+        font(Typeface.body(fontSize))
             .tint(Palette.accent)
             .padding(.leading, leadingInset)
             .padding(.trailing, 10)

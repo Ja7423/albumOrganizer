@@ -83,8 +83,8 @@ public struct RuleClassifier: ScreenshotClassifier {
     }
 }
 
-extension RuleClassifier {
-    public static let defaultRules: [Rule] = [
+public extension RuleClassifier {
+    static let defaultRules: [Rule] = [
         Rule(.receipt,
              keywords: ["發票", "收據", "合計", "總計", "小計", "訂單明細", "訂單編號", "付款金額", "付款成功", "交易明細",
                         "實付", "統一編號", "receipt", "invoice", "subtotal", "total"],
@@ -125,6 +125,6 @@ extension RuleClassifier {
                         "訂位確認", "預約", "報到", "活動時間"],
              signalScore: { $0.dates > 0 ? 0.3 : 0 }),
         Rule(.note,
-             keywords: ["待辦", "to-do", "todo", "記得", "別忘", "deadline", "購物清單", "採買", "要買", "備忘錄", "筆記"])
+             keywords: ["待辦", "to-do", "todo", "記得", "別忘", "deadline", "購物清單", "採買", "要買", "備忘錄", "筆記"]),
     ]
 }

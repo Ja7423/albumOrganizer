@@ -1,6 +1,6 @@
+import ScreenshotKit
 import SwiftUI
 import UIKit
-import ScreenshotKit
 
 /// Tabs, the batch-selection bar, the sliding detail page, sheets and dialogs.
 struct AppShell: View {
@@ -38,9 +38,8 @@ struct AppShell: View {
             }
             .background(Palette.bg)
 
-            if let id = ui.detailID {
-                ShotDetailScreen(shotID: id)
-                    .id(id)
+            if ui.detail != nil {
+                ShotDetailScreen()
                     .transition(.move(edge: .trailing))
                     .zIndex(20)
             }
@@ -68,7 +67,7 @@ struct TabBar: View {
         (.all, "截圖", "photo.on.rectangle"),
         (.folders, "資料夾", "folder"),
         (.tags, "標籤", "tag"),
-        (.search, "搜尋", "magnifyingglass")
+        (.search, "搜尋", "magnifyingglass"),
     ]
 
     var body: some View {
@@ -176,7 +175,7 @@ extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
         interactivePopGestureRecognizer?.delegate = self
     }
 
-    public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+    public func gestureRecognizerShouldBegin(_: UIGestureRecognizer) -> Bool {
         viewControllers.count > 1
     }
 }

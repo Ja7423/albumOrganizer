@@ -1,14 +1,10 @@
-import SwiftUI
 import CoreTransferable
-import UniformTypeIdentifiers
-import UIKit
 import ScreenshotKit
+import SwiftUI
+import UIKit
+import UniformTypeIdentifiers
 
-/// Detail page, layout B (圖片優先): the screenshot fills the page; turning on selection lets you tap
-/// recognized text right on the image. Folder, tags and info sit in a bottom bar that expands.
 struct ShotDetailScreen: View {
-    let shotID: String
-
     @Environment(LibraryStore.self) private var store
     @Environment(UIState.self) private var ui
 
@@ -17,12 +13,18 @@ struct ShotDetailScreen: View {
     @State private var expanded = false
     @State private var dragOffset: CGFloat = 0
 
+    /// Width of the leading strip that starts the swipe-back instead of paging.
+    private let edgeWidth: CGFloat = 24
+
     var body: some View {
         Group {
-            if let shot = store.library.shot(shotID) {
+            if let session = ui.detail, let shot = store.library.shot(session.currentID) {
                 VStack(spacing: 0) {
                     header(shot)
-                    imageArea(shot)
+                    pager(session.visibleShots(in: store.library))
+                        .overlay(alignment: .bottomLeading) {
+                            recognitionButton(shot).padding(12)
+                        }
                     if selecting {
                         selectionPanel(shot)
                     } else {
@@ -31,13 +33,18 @@ struct ShotDetailScreen: View {
                 }
             } else {
                 // Deleted from Photos while open.
-                Palette.bg.ignoresSafeArea().onAppear { ui.closeDetail() }
+                Palette.bg.ignoresSafeArea().onAppear { ui.replaceMissingDetail(in: store.library) }
             }
         }
         .background(Rectangle().fill(Palette.bg).shadowLG().ignoresSafeArea())
         .offset(x: dragOffset)
-        .simultaneousGesture(edgeSwipe)
-        .task { store.prioritize(shotID) }
+        .task(id: ui.detailID) {
+            if let id = ui.detailID { store.prioritize(id) }
+        }
+        .onChange(of: ui.detailID) {
+            selecting = false
+            selected = []
+        }
     }
 
     // MARK: - Header
@@ -71,37 +78,39 @@ struct ShotDetailScreen: View {
         }
     }
 
-    // MARK: - Image
+    // MARK: - Pager
 
-    private func imageArea(_ shot: Shot) -> some View {
-        GeometryReader { geo in
-            let fit = fittedSize(in: CGSize(width: geo.size.width - 40, height: geo.size.height - 40), aspect: shot.aspectRatio)
-            AssetImage(id: shot.id, targetSize: fit, contentMode: .fit)
-                .frame(width: fit.width, height: fit.height)
-                .overlay(alignment: .topLeading) {
-                    if selecting {
-                        TextBlockOverlay(blocks: shot.blocks, selected: selected, size: fit) { id in
-                            if selected.contains(id) { selected.remove(id) } else { selected.insert(id) }
-                        }
+    private func pager(_ shots: [Shot]) -> some View {
+        ScrollView(.horizontal) {
+            LazyHStack(spacing: 0) {
+                ForEach(shots) { shot in
+                    ShotPage(shot: shot, selecting: selecting, selected: selected) { id in
+                        if selected.contains(id) { selected.remove(id) } else { selected.insert(id) }
                     }
+                    .containerRelativeFrame([.horizontal, .vertical])
                 }
-                .frame(width: geo.size.width, height: geo.size.height)
-                .animation(.easeInOut(duration: 0.2), value: fit)
+            }
+            .scrollTargetLayout()
         }
+        .scrollTargetBehavior(.paging)
+        .scrollPosition(id: pageID)
+        .scrollIndicators(.hidden)
+        .scrollDisabled(selecting)
         .background(Palette.surface)
         .clipped()
-        .overlay(alignment: .bottomLeading) {
-            recognitionButton(shot).padding(12)
-        }
+        .overlay(alignment: .leading) { edgeSwipeStrip }
     }
 
-    private func fittedSize(in box: CGSize, aspect: Double) -> CGSize {
-        guard box.width > 0, box.height > 0 else { return .zero }
-        let a = CGFloat(aspect)
-        return box.width / box.height > a
-            ? CGSize(width: box.height * a, height: box.height)
-            : CGSize(width: box.width, height: box.width / a)
+    private var pageID: Binding<String?> {
+        Binding(
+            get: { ui.detailID },
+            set: { id in
+                if let id { ui.showDetailPage(id) }
+            }
+        )
     }
+
+    // MARK: - Recognition
 
     @ViewBuilder
     private func recognitionButton(_ shot: Shot) -> some View {
@@ -245,54 +254,27 @@ struct ShotDetailScreen: View {
 
     // MARK: - Edge swipe back
 
+    /// Sits over the pager's leading edge so a drag from there goes back instead of paging.
+    private var edgeSwipeStrip: some View {
+        Color.clear
+            .frame(width: edgeWidth)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(edgeSwipe)
+    }
+
     private var edgeSwipe: some Gesture {
-        DragGesture(minimumDistance: 12)
+        DragGesture(minimumDistance: 12, coordinateSpace: .global)
             .onChanged { value in
-                guard value.startLocation.x < 24 else { return }
                 dragOffset = max(0, value.translation.width)
             }
             .onEnded { value in
-                guard value.startLocation.x < 24 else { return }
                 if value.translation.width > 110 || value.predictedEndTranslation.width > 240 {
                     ui.closeDetail()
                 } else {
                     withAnimation(.easeOut(duration: 0.2)) { dragOffset = 0 }
                 }
             }
-    }
-}
-
-/// Tappable outlines over each recognized line.
-private struct TextBlockOverlay: View {
-    let blocks: [TextBlock]
-    let selected: Set<Int>
-    let size: CGSize
-    let toggle: (Int) -> Void
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            ForEach(blocks) { block in
-                let on = selected.contains(block.id)
-                let rect = CGRect(
-                    x: block.box.x * size.width - 3,
-                    y: block.box.y * size.height - 2,
-                    width: block.box.width * size.width + 6,
-                    height: block.box.height * size.height + 4
-                )
-                Rectangle()
-                    .fill(Palette.accent.opacity(on ? 0.30 : 0.08))
-                    .overlay(Rectangle().strokeBorder(Palette.accent, lineWidth: 1.5))
-                    .frame(width: rect.width, height: rect.height)
-                    .contentShape(Rectangle().inset(by: -4))
-                    .onTapGesture { toggle(block.id) }
-                    .position(x: rect.midX, y: rect.midY)
-                    .accessibilityElement()
-                    .accessibilityLabel(block.text)
-                    .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
-            }
-        }
-        .frame(width: size.width, height: size.height, alignment: .topLeading)
-        .animation(.easeOut(duration: 0.15), value: selected)
     }
 }
 

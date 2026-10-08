@@ -1,5 +1,5 @@
-import SwiftUI
 import Photos
+import SwiftUI
 import UIKit
 
 /// A Photos asset drawn into whatever frame the caller gives it.

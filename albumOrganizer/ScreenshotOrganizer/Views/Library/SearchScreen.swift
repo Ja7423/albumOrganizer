@@ -1,5 +1,5 @@
-import SwiftUI
 import ScreenshotKit
+import SwiftUI
 
 struct SearchScreen: View {
     @Environment(LibraryStore.self) private var store
@@ -48,7 +48,7 @@ struct SearchScreen: View {
                         if let shot = store.library.shot(hit.shotID) {
                             ResultRow(shot: shot, hit: hit, meta: meta(for: shot)) {
                                 focused = false
-                                ui.openDetail(shot.id)
+                                ui.openDetail(shot.id, in: hits.map(\.shotID))
                             }
                         }
                     }

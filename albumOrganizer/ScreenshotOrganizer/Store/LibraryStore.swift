@@ -1,8 +1,8 @@
 import Foundation
 import Observation
 import Photos
-import UIKit
 import ScreenshotKit
+import UIKit
 
 /// Owns the `Library`, keeps it in sync with Photos, feeds the processing queue and saves to disk.
 @MainActor
@@ -51,8 +51,8 @@ final class LibraryStore {
         library.requeueOutdated(version: ClassificationPipeline.version)
         self.library = library
         let onboarded = UserDefaults.standard.bool(forKey: Self.onboardedKey)
-        self.phase = onboarded && photos.hasAccess ? .app : .welcome
-        self.processor = ScreenshotProcessor(
+        phase = onboarded && photos.hasAccess ? .app : .welcome
+        processor = ScreenshotProcessor(
             photos: photos,
             recognizer: recognizer,
             pipeline: pipeline,
@@ -142,7 +142,9 @@ final class LibraryStore {
         }
     }
 
-    var processingCount: Int { library.count(in: .processing) }
+    var processingCount: Int {
+        library.count(in: .processing)
+    }
 
     // MARK: - Mutations
 

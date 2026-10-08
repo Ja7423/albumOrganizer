@@ -1,10 +1,10 @@
 import Photos
 import PhotosUI
-import UIKit
 import ScreenshotKit
+import UIKit
 
 /// Read-only access to the Screenshots smart album. Photos are never moved or modified.
-nonisolated final class PhotoLibraryService: NSObject, PHPhotoLibraryChangeObserver, @unchecked Sendable {
+final nonisolated class PhotoLibraryService: NSObject, PHPhotoLibraryChangeObserver, @unchecked Sendable {
     static let shared = PhotoLibraryService()
 
     private let imageManager = PHCachingImageManager()
@@ -14,6 +14,7 @@ nonisolated final class PhotoLibraryService: NSObject, PHPhotoLibraryChangeObser
         cache.totalCostLimit = 64 * 1024 * 1024
         return cache
     }()
+
     private var onChange: (@MainActor () -> Void)?
     private var isObserving = false
 
@@ -66,7 +67,7 @@ nonisolated final class PhotoLibraryService: NSObject, PHPhotoLibraryChangeObser
         PHPhotoLibrary.shared().register(self)
     }
 
-    func photoLibraryDidChange(_ changeInstance: PHChange) {
+    func photoLibraryDidChange(_: PHChange) {
         guard let onChange else { return }
         Task { @MainActor in onChange() }
     }
