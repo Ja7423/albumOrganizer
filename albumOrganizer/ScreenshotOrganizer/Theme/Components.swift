@@ -67,10 +67,21 @@ struct TagChip: View {
     enum Style { case accent, neutral, outline }
     enum Size {
         case small, regular, large
-        var font: CGFloat { switch self { case .small: 12; case .regular: 13; case .large: 14 } }
-        var vertical: CGFloat { switch self { case .small: 5; case .regular: 6; case .large: 7 } }
-        var horizontal: CGFloat { switch self { case .small: 9; case .regular: 10; case .large: 12 } }
-        var icon: CGFloat { switch self { case .small: 11; case .regular, .large: 12 } }
+        var font: CGFloat {
+            switch self { case .small: 12; case .regular: 13; case .large: 14 }
+        }
+
+        var vertical: CGFloat {
+            switch self { case .small: 5; case .regular: 6; case .large: 7 }
+        }
+
+        var horizontal: CGFloat {
+            switch self { case .small: 9; case .regular: 10; case .large: 12 }
+        }
+
+        var icon: CGFloat {
+            switch self { case .small: 11; case .regular, .large: 12 }
+        }
     }
 
     var text: String = ""
@@ -152,14 +163,14 @@ struct AutoLabel: View {
 struct FlowLayout: Layout {
     var spacing: CGFloat = 6
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache _: inout ()) -> CGSize {
         let rows = arrange(width: proposal.width ?? .infinity, subviews: subviews)
         let height = rows.last.map { $0.y + $0.height } ?? 0
         let width = rows.map(\.width).max() ?? 0
         return CGSize(width: proposal.width ?? width, height: height)
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    func placeSubviews(in bounds: CGRect, proposal _: ProposedViewSize, subviews: Subviews, cache _: inout ()) {
         let rows = arrange(width: bounds.width, subviews: subviews)
         for row in rows {
             var x = bounds.minX

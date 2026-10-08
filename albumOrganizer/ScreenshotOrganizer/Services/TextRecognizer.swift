@@ -1,9 +1,9 @@
 import ImageIO
-import Vision
 import ScreenshotKit
+import Vision
 
 /// What one recognition pass finds on a screenshot.
-nonisolated struct RecognitionOutput: Sendable {
+nonisolated struct RecognitionOutput {
     var blocks: [TextBlock]
     var barcodes: [String]
 }
@@ -20,7 +20,8 @@ nonisolated struct VisionScreenRecognizer: ScreenRecognizing {
     func recognize(_ data: Data, orientation: CGImagePropertyOrientation) async throws -> RecognitionOutput {
         try await Task.detached(priority: .utility) {
             guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-                  let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+                  let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+            else {
                 throw CocoaError(.fileReadCorruptFile)
             }
             let textRequest = VNRecognizeTextRequest()

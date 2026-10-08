@@ -1,8 +1,8 @@
-import SwiftUI
 import CoreTransferable
-import UniformTypeIdentifiers
-import UIKit
 import ScreenshotKit
+import SwiftUI
+import UIKit
+import UniformTypeIdentifiers
 
 /// Detail page, layout B (圖片優先): the screenshot fills the page; turning on selection lets you tap
 /// recognized text right on the image. Folder, tags and info sit in a bottom bar that expands.

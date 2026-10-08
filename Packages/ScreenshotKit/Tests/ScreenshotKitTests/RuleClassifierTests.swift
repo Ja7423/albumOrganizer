@@ -1,5 +1,5 @@
-import XCTest
 import ScreenshotKit
+import XCTest
 
 final class RuleClassifierTests: XCTestCase {
     private struct LabeledCase: Decodable {
@@ -34,7 +34,7 @@ final class RuleClassifierTests: XCTestCase {
         for c in cases {
             let verdict = try await classifier.classify(input(c))
             let got: BuiltInCategory? = verdict.flatMap {
-                if case .builtIn(let category) = $0.target, $0.confidence >= 0.7 { return category }
+                if case let .builtIn(category) = $0.target, $0.confidence >= 0.7 { return category }
                 return nil
             }
             XCTAssertEqual(got, c.expected, "\(c.text.replacingOccurrences(of: "\n", with: " / ")) scores: \(classifier.scores(for: input(c)).filter { $0.value > 0 })")
@@ -42,7 +42,7 @@ final class RuleClassifierTests: XCTestCase {
     }
 
     func testEveryCategoryHasSamples() throws {
-        let covered = Set(try labeledCases().compactMap(\.expected))
+        let covered = try Set(labeledCases().compactMap(\.expected))
         XCTAssertEqual(covered, Set(BuiltInCategory.allCases))
     }
 

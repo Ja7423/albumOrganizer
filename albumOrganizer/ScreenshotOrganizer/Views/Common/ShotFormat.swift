@@ -33,7 +33,7 @@ enum ShotFormat {
         switch placement {
         case .pending: return "處理中…"
         case .user: return "手動放入"
-        case .auto(let auto):
+        case let .auto(auto):
             guard let source = auto.source else { return "自動分類 · 無法判斷" }
             return "自動分類 · " + sourceName(source)
         }

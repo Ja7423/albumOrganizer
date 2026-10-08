@@ -1,11 +1,11 @@
-import XCTest
 import ScreenshotKit
+import XCTest
 
 private struct FixedClassifier: ScreenshotClassifier {
     var verdict: ClassifierVerdict?
     var fails = false
 
-    func classify(_ input: ClassifierInput) async throws -> ClassifierVerdict? {
+    func classify(_: ClassifierInput) async throws -> ClassifierVerdict? {
         if fails { throw CocoaError(.featureUnsupported) }
         return verdict
     }
@@ -22,7 +22,7 @@ final class ClassificationPipelineTests: XCTestCase {
         let pipeline = ClassificationPipeline(layers: [
             .init(FixedClassifier(verdict: verdict(.chat, 0.5, .rule)), threshold: 0.7),
             .init(FixedClassifier(verdict: nil), threshold: 0.7),
-            .init(FixedClassifier(verdict: verdict(.article, 0.8, .llm)), threshold: 0.6)
+            .init(FixedClassifier(verdict: verdict(.article, 0.8, .llm)), threshold: 0.6),
         ])
         let result = await pipeline.classify(input)
         XCTAssertEqual(result, verdict(.article, 0.8, .llm))
@@ -31,7 +31,7 @@ final class ClassificationPipelineTests: XCTestCase {
     func testStopsAtFirstConfidentLayer() async {
         let pipeline = ClassificationPipeline(layers: [
             .init(FixedClassifier(verdict: verdict(.code, 0.9, .rule)), threshold: 0.7),
-            .init(FixedClassifier(verdict: verdict(.article, 1, .llm)), threshold: 0)
+            .init(FixedClassifier(verdict: verdict(.article, 1, .llm)), threshold: 0),
         ])
         let result = await pipeline.classify(input)
         XCTAssertEqual(result?.target, .builtIn(.code))
@@ -40,7 +40,7 @@ final class ClassificationPipelineTests: XCTestCase {
     func testSkipsThrowingLayers() async {
         let pipeline = ClassificationPipeline(layers: [
             .init(FixedClassifier(fails: true), threshold: 0),
-            .init(FixedClassifier(verdict: verdict(.note, 0.9, .knn)), threshold: 0.7)
+            .init(FixedClassifier(verdict: verdict(.note, 0.9, .knn)), threshold: 0.7),
         ])
         let result = await pipeline.classify(input)
         XCTAssertEqual(result?.source, .knn)

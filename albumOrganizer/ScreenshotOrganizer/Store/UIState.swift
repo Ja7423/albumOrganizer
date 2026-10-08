@@ -1,7 +1,7 @@
-import SwiftUI
-import UIKit
 import Observation
 import ScreenshotKit
+import SwiftUI
+import UIKit
 
 /// Navigation and transient UI state shared across screens.
 @MainActor

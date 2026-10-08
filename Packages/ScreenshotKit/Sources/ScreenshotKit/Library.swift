@@ -44,12 +44,12 @@ public struct Library: Codable, Hashable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        self.init(
-            shots: try c.decode([Shot].self, forKey: .shots),
-            folders: try c.decode([Folder].self, forKey: .folders),
-            tags: try c.decode([String].self, forKey: .tags),
-            hiddenShotIDs: try c.decode(Set<String>.self, forKey: .hiddenShotIDs),
-            deletedBuiltIns: try c.decode(Set<BuiltInCategory>.self, forKey: .deletedBuiltIns)
+        try self.init(
+            shots: c.decode([Shot].self, forKey: .shots),
+            folders: c.decode([Folder].self, forKey: .folders),
+            tags: c.decode([String].self, forKey: .tags),
+            hiddenShotIDs: c.decode(Set<String>.self, forKey: .hiddenShotIDs),
+            deletedBuiltIns: c.decode(Set<BuiltInCategory>.self, forKey: .deletedBuiltIns)
         )
     }
 
@@ -83,9 +83,9 @@ public struct Library: Codable, Hashable, Sendable {
         case .all: return shots
         case .processing: return shots.filter(\.isProcessing)
         case .unsorted: return shots.filter(\.isUnsorted)
-        case .tag(let t): return shots.filter { $0.tags.contains(t) }
-        case .feature(let f): return shots.filter { $0.featureTags.contains(f) }
-        case .folder(let id): return shots.filter { $0.folderID == id }
+        case let .tag(t): return shots.filter { $0.tags.contains(t) }
+        case let .feature(f): return shots.filter { $0.featureTags.contains(f) }
+        case let .folder(id): return shots.filter { $0.folderID == id }
         }
     }
 
@@ -198,7 +198,9 @@ public struct Library: Codable, Hashable, Sendable {
 
     public static func normalizedTag(_ raw: String) -> String {
         var t = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        while t.hasPrefix("#") { t.removeFirst() }
+        while t.hasPrefix("#") {
+            t.removeFirst()
+        }
         return t.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 

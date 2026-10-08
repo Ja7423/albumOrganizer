@@ -79,8 +79,8 @@ public enum SignalExtractor {
 
     private static func bubbleSide(_ block: TextBlock) -> BubbleSide? {
         let maxX = block.box.x + block.box.width
-        if block.box.x < 0.25 && maxX < 0.7 { return .left }
-        if block.box.x > 0.3 && maxX > 0.8 { return .right }
+        if block.box.x < 0.25, maxX < 0.7 { return .left }
+        if block.box.x > 0.3, maxX > 0.8 { return .right }
         return nil
     }
 

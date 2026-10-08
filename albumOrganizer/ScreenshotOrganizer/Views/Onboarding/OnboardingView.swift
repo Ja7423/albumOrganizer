@@ -1,6 +1,6 @@
+import ScreenshotKit
 import SwiftUI
 import UIKit
-import ScreenshotKit
 
 /// 首次匯入: welcome → photo permission → import with text recognition and classification.
 struct OnboardingView: View {
@@ -25,7 +25,9 @@ struct OnboardingView: View {
 
 private struct StepKicker: View {
     let text: String
-    var body: some View { Kicker(text, color: Palette.accent700, tracking: 0.1) }
+    var body: some View {
+        Kicker(text, color: Palette.accent700, tracking: 0.1)
+    }
 }
 
 private struct ContinueButton: View {
@@ -54,7 +56,7 @@ private struct WelcomeStep: View {
     private let features = [
         Feature(id: "01", title: "資料夾與標籤", detail: "每張截圖放進一個資料夾，再加上多個標籤。"),
         Feature(id: "02", title: "複製圖中文字", detail: "一鍵複製全部，或在圖上點選需要的段落。"),
-        Feature(id: "03", title: "自動分類", detail: "依截圖內容自動放進資料夾，隨時可以改。")
+        Feature(id: "03", title: "自動分類", detail: "依截圖內容自動放進資料夾，隨時可以改。"),
     ]
 
     var body: some View {

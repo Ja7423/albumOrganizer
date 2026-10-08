@@ -1,5 +1,5 @@
-import XCTest
 import ScreenshotKit
+import XCTest
 
 final class LibraryTests: XCTestCase {
     private func asset(_ id: String, _ minutesAgo: Double) -> AssetInfo {
@@ -42,11 +42,11 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(lib.pendingClassificationIDs, ["a"], "out of retries, it is classified as textless")
     }
 
-    func testRecognitionAloneDoesNotPlace() {
+    func testRecognitionAloneDoesNotPlace() throws {
         var lib = Library()
         lib.sync(with: [asset("a", 1)])
         lib.setRecognition("a", blocks: [block("電子發票證明聯")], barcodes: ["https://einvoice"])
-        let shot = lib.shot("a")!
+        let shot = try XCTUnwrap(lib.shot("a"))
         XCTAssertEqual(shot.recognition, .done)
         XCTAssertEqual(shot.barcodes, ["https://einvoice"])
         XCTAssertTrue(shot.isProcessing)
@@ -55,11 +55,11 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(lib.pendingClassificationIDs, ["a"])
     }
 
-    func testOneFolderPerShot() {
+    func testOneFolderPerShot() throws {
         var lib = Library()
         lib.sync(with: [asset("a", 1), asset("b", 2)])
-        let work = lib.createFolder(named: " 工作 ")!
-        let travel = lib.createFolder(named: "旅行")!
+        let work = try XCTUnwrap(lib.createFolder(named: " 工作 "))
+        let travel = try XCTUnwrap(lib.createFolder(named: "旅行"))
         XCTAssertEqual(work.name, "工作")
         XCTAssertEqual(lib.createFolder(named: "工作")?.id, work.id)
 
@@ -132,13 +132,13 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(lib.folders.first?.name, "收據")
     }
 
-    func testClassificationPlacesIntoBuiltInFolder() {
+    func testClassificationPlacesIntoBuiltInFolder() throws {
         var lib = Library()
         lib.sync(with: [asset("a", 1), asset("b", 2)])
         lib.applyClassification("a", verdict: verdict(.receipt), features: [.qrCode], version: 3)
         lib.applyClassification("b", verdict: nil, features: [], version: 3)
 
-        let receipts = builtInFolder(lib, .receipt)!
+        let receipts = try XCTUnwrap(builtInFolder(lib, .receipt))
         XCTAssertEqual(lib.shot("a")?.folderID, receipts.id)
         XCTAssertEqual(lib.shot("a")?.placement, .auto(AutoPlacement(source: .rule, classifierVersion: 3)))
         XCTAssertEqual(lib.shot("a")?.featureTags, [.qrCode])
@@ -150,11 +150,11 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(lib.presentFeatureTags, [.qrCode])
     }
 
-    func testEmptyFoldersSortLastAndFollowMoves() {
+    func testEmptyFoldersSortLastAndFollowMoves() throws {
         var lib = Library()
         lib.sync(with: [asset("a", 1)])
-        let receipts = builtInFolder(lib, .receipt)!
-        let last = lib.folders.last!
+        let receipts = try XCTUnwrap(builtInFolder(lib, .receipt))
+        let last = try XCTUnwrap(lib.folders.last)
         XCTAssertEqual(lib.foldersEmptyLast.map(\.id), lib.folders.map(\.id))
 
         lib.move(["a"], to: last.id)
@@ -175,10 +175,10 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(lib.count(in: .unsorted), 1)
     }
 
-    func testDeletingBuiltInFolderRequeuesAutomaticShotsOnly() {
+    func testDeletingBuiltInFolderRequeuesAutomaticShotsOnly() throws {
         var lib = Library()
         lib.sync(with: [asset("auto", 1), asset("mine", 2)])
-        let social = builtInFolder(lib, .social)!
+        let social = try XCTUnwrap(builtInFolder(lib, .social))
         lib.applyClassification("auto", verdict: verdict(.social), features: [], version: 1)
         lib.move(["mine"], to: social.id)
 
@@ -197,7 +197,7 @@ final class LibraryTests: XCTestCase {
 
     func testDeletedBuiltInIsNotRecreatedAfterReload() throws {
         var lib = Library()
-        lib.deleteFolder(builtInFolder(lib, .note)!.id)
+        try lib.deleteFolder(XCTUnwrap(builtInFolder(lib, .note)?.id))
         let reloaded = try JSONDecoder().decode(Library.self, from: JSONEncoder().encode(lib))
         XCTAssertNil(builtInFolder(reloaded, .note))
         XCTAssertEqual(reloaded.folders.count, BuiltInCategory.allCases.count - 1)
@@ -228,9 +228,9 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(lib.shot("a")?.featureTags, [.link])
     }
 
-    func testRenameFolderRejectsEmptyAndDuplicateNames() {
+    func testRenameFolderRejectsEmptyAndDuplicateNames() throws {
         var lib = Library()
-        let receipts = builtInFolder(lib, .receipt)!
+        let receipts = try XCTUnwrap(builtInFolder(lib, .receipt))
         XCTAssertTrue(lib.renameFolder(receipts.id, to: " 帳單 "))
         XCTAssertEqual(lib.folderName(receipts.id), "帳單")
         XCTAssertEqual(lib.folder(receipts.id)?.builtIn, .receipt, "renaming keeps the category key")

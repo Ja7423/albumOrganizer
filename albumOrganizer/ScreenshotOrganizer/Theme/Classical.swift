@@ -56,8 +56,13 @@ enum Shadow {
 }
 
 extension View {
-    func shadowMD() -> some View { shadow(color: Shadow.mdColor, radius: 5, x: 0, y: 3) }
-    func shadowLG() -> some View { shadow(color: Shadow.lgColor, radius: 16, x: 0, y: 12) }
+    func shadowMD() -> some View {
+        shadow(color: Shadow.mdColor, radius: 5, x: 0, y: 3)
+    }
+
+    func shadowLG() -> some View {
+        shadow(color: Shadow.lgColor, radius: 16, x: 0, y: 12)
+    }
 }
 
 /// The design pairs Cormorant Garamond (headings) and Lora (body) with Noto Serif TC
@@ -92,7 +97,7 @@ enum Typeface {
         let cjk = weight == .semibold ? "NotoSerifTC-SemiBold" : "NotoSerifTC-Regular"
         let descriptor = UIFontDescriptor(fontAttributes: [
             .name: latin,
-            .cascadeList: [UIFontDescriptor(fontAttributes: [.name: cjk])]
+            .cascadeList: [UIFontDescriptor(fontAttributes: [.name: cjk])],
         ])
         return UIFont(descriptor: descriptor, size: size)
     }

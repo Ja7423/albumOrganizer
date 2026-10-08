@@ -1,5 +1,5 @@
-import XCTest
 import ScreenshotKit
+import XCTest
 
 final class SearchTests: XCTestCase {
     private func library() -> Library {
@@ -7,7 +7,7 @@ final class SearchTests: XCTestCase {
         lib.sync(with: [
             AssetInfo(id: "wifi", createdAt: Date(timeIntervalSince1970: 3), pixelWidth: 1, pixelHeight: 2),
             AssetInfo(id: "map", createdAt: Date(timeIntervalSince1970: 2), pixelWidth: 1, pixelHeight: 2),
-            AssetInfo(id: "code", createdAt: Date(timeIntervalSince1970: 1), pixelWidth: 1, pixelHeight: 2)
+            AssetInfo(id: "code", createdAt: Date(timeIntervalSince1970: 1), pixelWidth: 1, pixelHeight: 2),
         ])
         let box = NormalizedRect(x: 0, y: 0.5, width: 1, height: 0.02)
         lib.setRecognition("wifi", blocks: [TextBlock(id: 0, text: "網路名稱 TPE-Home-5G", box: box),
@@ -49,9 +49,9 @@ final class SearchTests: XCTestCase {
         XCTAssertTrue(library().search("  ").isEmpty)
     }
 
-    func testSearchMatchesFeatureTags() {
+    func testSearchMatchesFeatureTags() throws {
         var lib = library()
-        let input = lib.classifierInput(for: "map")!
+        let input = try XCTUnwrap(lib.classifierInput(for: "map"))
         lib.applyClassification("map", verdict: nil, features: FeatureDetector.detect(input.signals), version: 1)
         XCTAssertEqual(lib.search("含地址").map(\.shotID), ["map"])
     }

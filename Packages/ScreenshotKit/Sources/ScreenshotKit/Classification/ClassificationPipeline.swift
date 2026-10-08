@@ -27,7 +27,7 @@ public struct ClassificationPipeline: Sendable {
     public func classify(_ input: ClassifierInput) async -> ClassifierVerdict? {
         for layer in layers {
             guard let verdict = try? await layer.classifier.classify(input) else { continue }
-            if verdict.confidence >= layer.threshold && !input.excluded.contains(verdict.target) {
+            if verdict.confidence >= layer.threshold, !input.excluded.contains(verdict.target) {
                 return verdict
             }
         }

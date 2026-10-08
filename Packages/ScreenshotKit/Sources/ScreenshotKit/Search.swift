@@ -2,17 +2,20 @@ import Foundation
 
 /// One search result: the matching line split around the match so the UI can highlight it.
 public struct SearchHit: Hashable, Identifiable, Sendable {
-    public var id: String { shotID }
+    public var id: String {
+        shotID
+    }
+
     public var shotID: String
     public var prefix: String
     public var match: String
     public var suffix: String
 }
 
-extension Library {
+public extension Library {
     /// Finds screenshots whose recognized text, tags (including feature tags) or title contain `query`.
     /// Text matches carry the highlighted line; tag/title matches show the first line.
-    public func search(_ query: String) -> [SearchHit] {
+    func search(_ query: String) -> [SearchHit] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return [] }
         let options: String.CompareOptions = [.caseInsensitive, .widthInsensitive]
