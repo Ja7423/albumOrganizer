@@ -8,6 +8,12 @@ nonisolated final class PhotoLibraryService: NSObject, PHPhotoLibraryChangeObser
     static let shared = PhotoLibraryService()
 
     private let imageManager = PHCachingImageManager()
+    /// The last final image delivered per asset, so a newly created view can draw it on its first frame.
+    private let recentImages: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.totalCostLimit = 64 * 1024 * 1024
+        return cache
+    }()
     private var onChange: (@MainActor () -> Void)?
     private var isObserving = false
 
@@ -71,6 +77,11 @@ nonisolated final class PhotoLibraryService: NSObject, PHPhotoLibraryChangeObser
         PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject
     }
 
+    /// The last image `images(for:)` finished loading for this asset, at whatever size it was requested.
+    func cachedImage(for id: String) -> UIImage? {
+        recentImages.object(forKey: id as NSString)
+    }
+
     /// Streams a fast degraded image, then the final one. Cancelling the stream cancels the request.
     func images(for id: String, targetSize: CGSize, contentMode: PHImageContentMode = .aspectFill) -> AsyncStream<UIImage> {
         AsyncStream { continuation in
@@ -82,9 +93,12 @@ nonisolated final class PhotoLibraryService: NSObject, PHPhotoLibraryChangeObser
             options.deliveryMode = .opportunistic
             options.resizeMode = .fast
             options.isNetworkAccessAllowed = true
-            let requestID = imageManager.requestImage(for: asset, targetSize: targetSize, contentMode: contentMode, options: options) { image, info in
-                if let image { continuation.yield(image) }
+            let requestID = imageManager.requestImage(for: asset, targetSize: targetSize, contentMode: contentMode, options: options) { [recentImages] image, info in
                 let degraded = (info?[PHImageResultIsDegradedKey] as? Bool) ?? false
+                if let image {
+                    if !degraded { recentImages.setObject(image, forKey: id as NSString, cost: Int(image.pixelArea) * 4) }
+                    continuation.yield(image)
+                }
                 if !degraded { continuation.finish() }
             }
             continuation.onTermination = { [imageManager] _ in

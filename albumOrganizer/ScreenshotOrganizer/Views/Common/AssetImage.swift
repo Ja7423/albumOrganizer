@@ -12,6 +12,20 @@ struct AssetImage: View {
 
     @Environment(\.displayScale) private var scale
     @State private var image: UIImage?
+    /// The asset `image` belongs to; it lags behind `id` until the new asset's first image arrives.
+    @State private var imageID: String?
+
+    init(id: String, targetSize: CGSize, contentMode: ContentMode = .fill, alignment: Alignment = .center) {
+        self.id = id
+        self.targetSize = targetSize
+        self.contentMode = contentMode
+        self.alignment = alignment
+        // Start from whatever was last loaded for this asset (e.g. the grid thumbnail), so a freshly
+        // pushed detail page shows the screenshot during the push instead of an empty box.
+        let cached = PhotoLibraryService.shared.cachedImage(for: id)
+        _image = State(initialValue: cached)
+        _imageID = State(initialValue: cached == nil ? nil : id)
+    }
 
     var body: some View {
         Rectangle()
@@ -31,9 +45,19 @@ struct AssetImage: View {
                 guard targetSize.width > 0, targetSize.height > 0 else { return }
                 let pixels = CGSize(width: targetSize.width * scale, height: targetSize.height * scale)
                 for await loaded in PhotoLibraryService.shared.images(for: id, targetSize: pixels, contentMode: contentMode == .fill ? .aspectFill : .aspectFit) {
+                    // The fast degraded delivery can be smaller than the cached image already shown; don't step down to it.
+                    if imageID == id, let image, loaded.pixelArea < image.pixelArea { continue }
                     image = loaded
+                    imageID = id
                 }
             }
             .accessibilityHidden(true)
+    }
+}
+
+extension UIImage {
+    /// Width × height in pixels.
+    var pixelArea: CGFloat {
+        size.width * scale * size.height * scale
     }
 }
