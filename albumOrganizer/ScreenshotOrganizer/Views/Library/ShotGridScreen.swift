@@ -99,6 +99,7 @@ struct ShotGridScreen: View {
             .padding(.top, 4)
             .padding(.bottom, 24)
         }
+        .refreshable { await store.refresh() }
         .background(Palette.bg)
         .toolbar(.hidden, for: .navigationBar)
     }

@@ -8,7 +8,7 @@
 | UI | SwiftUI，`@Observable` 狀態，預設 actor isolation 為 `MainActor` |
 | 領域邏輯 | 本地 Swift Package `ScreenshotKit`（iOS 17 / macOS 14，可單獨 `swift test`） |
 | 儲存 | `Library` 值型別編碼成 JSON：`Application Support/library.json` |
-| 文件更新日期 | 2026-10-10（對應 commit `82b4388`） |
+| 文件更新日期 | 2026-10-10（對應 commit `b86e9b5`） |
 
 ## 文件索引
 
@@ -166,6 +166,7 @@ App 不複製、不搬移、不修改任何照片檔案，只讀取 Photos，並
 ### 2.3 背景與同步
 
 - App 回到前景、或 Photos 通知相簿變更時，自動重新同步並繼續處理佇列。
+- 在任一截圖 grid 下拉可手動更新：在背景重新讀取相簿後同步（見 [截圖 tab §2.5](spec/tab-screenshots.md#25-下拉更新)）。
 - 部分照片權限時，截圖 tab 與資料夾 tab 頂端顯示提示，可「選取更多截圖」或「前往設定」。
 - 開啟某張處理中截圖的詳細頁時，它會被插到佇列最前面。
 

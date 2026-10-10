@@ -116,8 +116,19 @@ final class LibraryStore {
 
     func syncWithPhotos() {
         guard photos.hasAccess else { return }
+        apply(photos.fetchScreenshots())
+    }
+
+    /// Pull-to-refresh: re-reads the Screenshots album off the main thread so the spinner keeps animating.
+    func refresh() async {
+        guard photos.hasAccess else { return }
+        let photos = photos
+        let assets = await Task.detached(priority: .userInitiated) { photos.fetchScreenshots() }.value
+        apply(assets)
+    }
+
+    private func apply(_ assets: [AssetInfo]) {
         isLimitedAccess = photos.isLimited
-        let assets = photos.fetchScreenshots()
         mutate { $0.sync(with: assets) }
         processor.start()
     }
