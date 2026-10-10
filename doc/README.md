@@ -8,7 +8,7 @@
 | UI | SwiftUI，`@Observable` 狀態，預設 actor isolation 為 `MainActor` |
 | 領域邏輯 | 本地 Swift Package `ScreenshotKit`（iOS 17 / macOS 14，可單獨 `swift test`） |
 | 儲存 | `Library` 值型別編碼成 JSON：`Application Support/library.json` |
-| 文件更新日期 | 2026-10-09（對應 commit `82b4388`） |
+| 文件更新日期 | 2026-10-10（對應 commit `82b4388`） |
 
 ## 文件索引
 
@@ -117,6 +117,21 @@ View 操作 ──ui.xxx──▶ UIState（導航、選取、sheet、toast）
 | 從 App 移除 | id 在 `hiddenShotIDs` | 哪裡都不出現；同步也不會加回，Photos 原檔保留 |
 
 OCR 失敗會在下一輪重試，最多 3 次（`Shot.maxRecognitionAttempts`），之後當作沒有文字直接分類。`ClassificationPipeline.version` 調高時，App 啟動會把舊版本自動分類的截圖送回處理中重新分類（使用者放入的不動）。
+
+### 1.5 匯入與檔案處理
+
+App 不複製、不搬移、不修改任何照片檔案，只讀取 Photos，並在自己的索引裡記錄結果。
+
+| 資料 | 怎麼取得 | 放在哪 |
+|------|------|------|
+| 截圖清單 | `fetchScreenshots()` 用 `mediaSubtypes & photoScreenshot` 篩選，新到舊；只轉成 `AssetInfo`（`localIdentifier`、建立時間、像素尺寸），不讀圖片內容 | 轉成 `Shot` 存進 `library.json` |
+| OCR 用的原圖 | `imageData(for:)` 以 `requestImageDataAndOrientation` 取原始解析度資料；原圖在 iCloud 時會下載（`isNetworkAccessAllowed`） | 只在記憶體，交給 Vision 辨識完就丟掉；辨識全程在裝置上，不上傳 |
+| OCR 結果 | `VisionScreenRecognizer`：繁中 + 英文文字、條碼（條碼失敗不影響文字）；座標轉成左上原點、由上到下排序、去掉狀態列 | `Shot.blocks` / `barcodes`，存進 `library.json` |
+| 畫面上的縮圖與大圖 | `images(for:targetSize:)` 向 `PHCachingImageManager` 即時要，先給低解析度版本再給最終版本 | 最終版本放在 64MB `NSCache`（記憶體），不寫進硬碟 |
+
+`library.json` 裡只有識別碼、尺寸、日期、辨識文字、資料夾、標籤與分類狀態，**沒有任何圖片**。Photos 刪掉的截圖會在下次同步時從 Library 移除。
+
+首次匯入的進度條（`LibraryStore.ImportProgress`）比重是掃描 20%、OCR 70%（已辨識 / 總數）、分類 10%。辨識與分類實際上是同時進行的：佇列清空時才把步驟切到「分類」，停 600ms 後顯示「完成」，讓使用者看得到這一步。
 
 ---
 
