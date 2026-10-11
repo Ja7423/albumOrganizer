@@ -57,4 +57,26 @@ final class ClassificationPipelineTests: XCTestCase {
         let result = await ClassificationPipeline(layers: []).classify(input)
         XCTAssertNil(result)
     }
+
+    func testClassifyOrThrowAppliesTheSameThresholdAndExclusions() async throws {
+        let pipeline = ClassificationPipeline(layers: [
+            .init(FixedClassifier(verdict: verdict(.chat, 0.5, .llm)), threshold: 0.6),
+            .init(FixedClassifier(verdict: verdict(.social, 0.9, .llm)), threshold: 0.6),
+            .init(FixedClassifier(verdict: verdict(.note, 0.9, .llm)), threshold: 0.6),
+        ])
+        let excluded = ClassifierInput(text: "x", signals: ScreenshotSignals(), excluded: [.builtIn(.social)])
+        let result = try await pipeline.classifyOrThrow(excluded)
+        XCTAssertEqual(result?.target, .builtIn(.note))
+    }
+
+    func testClassifyOrThrowPropagatesLayerErrors() async {
+        let pipeline = ClassificationPipeline(layers: [
+            .init(FixedClassifier(fails: true), threshold: 0),
+            .init(FixedClassifier(verdict: verdict(.note, 0.9, .llm)), threshold: 0),
+        ])
+        do {
+            _ = try await pipeline.classifyOrThrow(input)
+            XCTFail("expected the layer's error")
+        } catch {}
+    }
 }

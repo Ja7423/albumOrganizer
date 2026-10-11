@@ -11,10 +11,27 @@ public struct AutoPlacement: Codable, Hashable, Sendable {
     /// `nil` when no layer was confident enough and the screenshot stayed in 未分類.
     public var source: ClassifierSource?
     public var classifierVersion: Int
+    /// The refinement pass (on-device LLM) already looked at this screenshot.
+    public var isRefined: Bool
 
-    public init(source: ClassifierSource?, classifierVersion: Int) {
+    public init(source: ClassifierSource?, classifierVersion: Int, isRefined: Bool = false) {
         self.source = source
         self.classifierVersion = classifierVersion
+        self.isRefined = isRefined
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case source, classifierVersion, isRefined
+    }
+
+    /// Files written before refinement existed have no `isRefined`; those screenshots still need the pass.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            source: c.decodeIfPresent(ClassifierSource.self, forKey: .source),
+            classifierVersion: c.decode(Int.self, forKey: .classifierVersion),
+            isRefined: c.decodeIfPresent(Bool.self, forKey: .isRefined) ?? false
+        )
     }
 }
 

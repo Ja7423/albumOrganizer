@@ -10,9 +10,12 @@ enum LibraryMigrator {
     static let importLegacyJSONIdentifier = "v2-import-legacy-json"
 
     /// `legacyJSON` is the `library.json` the app used before SQLite; imported once if present.
+    /// The import writes rows with today's records, so it stays registered after every schema change.
+    /// GRDB runs whatever is not applied yet, so a database that already imported still gets new schema migrations.
     static func migrator(legacyJSON: JSONLibraryFile?) -> DatabaseMigrator {
         var migrator = DatabaseMigrator()
         migrator.registerMigration("v1-schema", migrate: createSchema)
+        migrator.registerMigration("v3-shot-is-refined", migrate: addShotIsRefined)
         migrator.registerMigration(importLegacyJSONIdentifier) { db in
             try importLegacyJSON(legacyJSON, into: db)
         }
@@ -58,6 +61,12 @@ enum LibraryMigrator {
             t.column("attempts", .integer).notNull()
             t.column("blocks", .text).notNull()
             t.column("barcodes", .text).notNull()
+        }
+    }
+
+    private static func addShotIsRefined(_ db: Database) throws {
+        try db.alter(table: "shot") { t in
+            t.add(column: "isRefined", .boolean).notNull().defaults(to: false)
         }
     }
 

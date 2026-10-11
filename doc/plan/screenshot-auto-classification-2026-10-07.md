@@ -84,7 +84,7 @@ SwiftUI Views ──讀取──▶ LibraryStore（@Observable：library、存�
      PhotoLibraryService   ScreenRecognizing       ClassificationPipeline (ScreenshotKit)
       （讀取圖片資料）      （Vision：文字＋條碼）     ├ RuleClassifier        ← 第一版
                                                     ├ KNNClassifier         ← 第 4 步
-                                                    └ FoundationModelsClassifier（app target）← 第 3 步
+                                                    └ FoundationModelsClassifier（app target）← 第 3 步，改成主佇列之後的補判，見 [llm-refinement-classifier-2026-10-11.md](llm-refinement-classifier-2026-10-11.md)
                                                    FeatureDetector / SignalExtractor（純函式）
 ```
 
