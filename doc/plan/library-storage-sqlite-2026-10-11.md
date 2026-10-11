@@ -326,6 +326,7 @@ init(
 - **platforms 維持 iOS 17 / macOS 14**：不需要 `Mutex`；`SQLiteLibraryDatabase` 是只有一個 `let` 的 final class，符合 `Sendable`，不用 `@unchecked`。
 - **GRDB 版本**：7.11.1，`Package.resolved` 一起進版控。
 - **驗證**：`LibraryPersistence` 17 個測試（in-memory 讀寫、增量寫入、外鍵、不認得的值、JSON 匯入、`JSONLibraryFile`）。模擬器上用既有的 12 張截圖驗證升級：匯入後 `shot`、`recognition`、`folder` 各 12 筆，`library.json` 改名為 `library.imported.json`，重新啟動不會重複匯入，畫面一致。**沒做**：步驟 10 用 Instruments 量測首次匯入的寫入量。
+- **合併後發現：全新資料庫存不了內建資料夾（v7 追加）**：上面的驗證只走了「從 `library.json` 匯入」，匯入用 `writeAll` 會寫入資料夾。實體 iPhone 從空的資料庫開始時，內建資料夾只存在記憶體裡，`lastSaved` 也包含它們，`hasFolderChanges` 一直是 false，資料夾從沒寫入。第一張分類進內建資料夾的截圖觸發外鍵失敗，之後每次存檔都失敗，每次啟動都重新處理全部截圖。修正：`LibraryRows.write` 有截圖要寫入時一律 upsert 資料夾，並加上回歸測試 `testPlacingAShotInAnUnsavedBuiltInFolderSaves`。
 
 ## 修訂紀錄
 
@@ -337,3 +338,4 @@ init(
 | v4 | 2026-10-11 | 風險新增「清掉 recognition 表不等於完整的重新辨識」，連到 storage.md §4.3 |
 | v5 | 2026-10-11 | 階段 1 追加列舉值容錯；storage.md §4.2 改寫相容性規則 |
 | v6 | 2026-10-11 | 階段 2 實作完成，新增「階段 2 實作紀錄」 |
+| v7 | 2026-10-11 | 階段 2 實作紀錄追加「全新資料庫存不了內建資料夾」的問題與修正 |

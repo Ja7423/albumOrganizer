@@ -35,8 +35,11 @@ enum LibraryRows {
 
     /// Writes only what `changes` names. Folders are upserted before screenshots that may point at
     /// them, and stale folders are removed only after no screenshot does.
+    ///
+    /// Folders are also upserted with any screenshot, even without folder changes: a loaded or empty
+    /// `Library` adds its built-in folders in memory only, so a diff against it never names them.
     static func write(_ library: Library, changes: LibraryChanges, to db: Database) throws {
-        if changes.hasFolderChanges { try upsertFolders(library.folders, db) }
+        if changes.hasFolderChanges || !changes.upsertedShotIDs.isEmpty { try upsertFolders(library.folders, db) }
         try ShotRecord.deleteAll(db, keys: changes.deletedShotIDs)
         try upsertShots(changes.upsertedShotIDs, of: library, db)
         if changes.hasFolderChanges { try deleteFolders(notIn: library.folders, db) }
