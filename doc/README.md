@@ -7,14 +7,15 @@
 | 平台 | iOS 26.0+（`IPHONEOS_DEPLOYMENT_TARGET`），只支援淺色模式 |
 | UI | SwiftUI，`@Observable` 狀態，預設 actor isolation 為 `MainActor` |
 | 領域邏輯 | 本地 Swift Package `ScreenshotKit`（iOS 17 / macOS 14，可單獨 `swift test`） |
-| 儲存 | `Library` 值型別編碼成 JSON：`Application Support/library.json` |
-| 文件更新日期 | 2026-10-10（對應 commit `b86e9b5`） |
+| 儲存 | SQLite（GRDB 7）：`Application Support/library.sqlite`，本地 Swift Package `LibraryPersistence`（見 [storage.md](storage.md)） |
+| 文件更新日期 | 2026-10-11（對應 `feature/library-storage`） |
 
 ## 文件索引
 
 | 文件 | 內容 |
 |------|------|
 | [README.md](README.md)（本文件） | 架構、資料流、使用流程、目錄結構 |
+| [storage.md](storage.md) | 資料儲存：SQLite 的架構、schema、讀寫與 migration 機制 |
 | [spec/tab-screenshots.md](spec/tab-screenshots.md) | 「截圖」tab：所有截圖 grid、篩選 chip、批次選取 |
 | [spec/tab-folders.md](spec/tab-folders.md) | 「資料夾」tab：資料夾列表、處理中／未分類、新增／改名／刪除 |
 | [spec/tab-tags.md](spec/tab-tags.md) | 「標籤」tab：自動標籤、我的標籤、新增／刪除 |
@@ -26,7 +27,7 @@
 
 ## 1. 架構總覽
 
-整個專案分成兩層：
+整個專案分成三個部分：App target、領域層 `ScreenshotKit`、儲存層 `LibraryPersistence`。
 
 ```
 ┌──────────────────────────── App target（albumOrganizer/ScreenshotOrganizer）────────────────────────────┐
@@ -39,8 +40,12 @@
 │                        └─ DetailSession                                                                │
 │                           (詳細頁可翻頁的 id 快照)                                                      │
 │  Theme（Palette / Typeface / 按鈕樣式 / 共用元件）                                                       │
-└───────────────────────────────────────────────┬────────────────────────────────────────────────────────┘
-                                                │ import
+└───────────────────────┬───────────────────────────────────────────────────────┬────────────────────────┘
+                        │ import                                                │ import
+                        │        ┌──── LibraryPersistence（Packages/LibraryPersistence）────┐
+                        │        │  SQLiteLibraryDatabase · LibraryMigrator · Records · GRDB │
+                        │        └───────────────────────────┬──────────────────────────────┘
+                        ▼                                    │ import
 ┌───────────────────────────── ScreenshotKit（Packages/ScreenshotKit）─────────────────────────────────────┐
 │  Library（唯一的資料根：shots / folders / tags / hiddenShotIDs / deletedBuiltIns，所有規則都在這）        │
 │  Shot · Folder · Placement · TextBlock · Scope · FeatureTag · BuiltInCategory                          │
@@ -57,6 +62,8 @@
 |------|------|
 | `Library.swift` | 資料根。`Scope` 篩選、Photos 同步（`sync(with:)`）、資料夾 CRUD、標籤 CRUD、`hide`（從 App 移除） |
 | `Library+Classification.swift` | 待分類清單、`classifierInput`、`applyClassification`（使用者手動搬過就不覆蓋）、`requeueOutdated` |
+| `LibraryCodec.swift` | 舊格式 `library.json` 的編解碼，現在只用於第一次啟動時匯入 |
+| `LibraryChanges.swift` | `Library.changes(since:)`：比對兩份 Library，算出哪些截圖、資料夾、標籤有變動 |
 | `Models.swift` | `Shot`、`Folder`、`TextBlock`、`NormalizedRect`、`AssetInfo`、`TextBlockFilter`（去掉狀態列文字） |
 | `Placement.swift` | `Placement`：`.pending`（處理中）/ `.auto(source, version)` / `.user`（鎖定） |
 | `Category.swift` | 12 個內建類別 `BuiltInCategory`（key 固定、名稱只是顯示） |
@@ -65,12 +72,22 @@
 | `Search.swift` | 全文搜尋，回傳切好前後文的 `SearchHit` |
 | `Classification/*` | 分類器協定、依序執行各層的 `ClassificationPipeline`（目前 `version = 3`，只有規則層，門檻 0.7） |
 
+`LibraryPersistence`（`Packages/LibraryPersistence`，儲存層）依賴 `ScreenshotKit` 與 GRDB，是專案裡唯一碰到 SQLite 的地方：
+
+| 檔案 | 職責 |
+|------|------|
+| `LibraryPersisting.swift` | 儲存層協定（`load` / `save`）與 `LibraryLoadResult`；`Logger.persistence` |
+| `SQLiteLibraryDatabase.swift` | 協定的 SQLite 實作：開啟資料庫、跑 migration、匯入舊的 `library.json` |
+| `LibraryMigrator.swift` | 所有 schema 變更 |
+| `LibraryRows.swift`、`Records.swift` | `Library` 與各張表的 row 互相轉換；只寫有變動的 row |
+| `JSONLibraryFile.swift` | 讀舊的 `library.json`（只用於匯入） |
+
 ### 1.2 App target
 
 | 目錄 | 檔案 | 職責 |
 |------|------|------|
 | `App/` | `ScreenshotOrganizerApp.swift` | 建立 `LibraryStore`、`UIState` 放進 environment；`RootView` 依 `store.phase` 切換 Onboarding / AppShell；監聽 scenePhase（進背景立即存檔、回前景重新同步） |
-| `Store/` | `LibraryStore.swift` | 持有 `Library`；首次匯入流程；Photos 同步；餵處理佇列；`mutate` 後 400ms debounce 存檔 |
+| `Store/` | `LibraryStore.swift` | 持有 `Library`；首次匯入流程；Photos 同步；餵處理佇列；`mutate` 後 400ms debounce 存檔（沒有變動就不寫） |
 | | `UIState.swift` | 目前 tab、截圖 tab 的 chip、各 tab 的 NavigationStack path、批次選取、詳細頁、sheet、dialog、toast |
 | | `DetailSession.swift` | 詳細頁開啟時拍下的 id 清單與目前頁 |
 | `Services/` | `PhotoLibraryService.swift` | 權限、撈出所有螢幕截圖、變更通知、縮圖串流（`PHCachingImageManager` + 64MB `NSCache`）、原圖資料 |
@@ -84,7 +101,6 @@
 | `Views/Common/` | `AssetImage`、`LimitedAccessBanner`、`ShotFormat` | 共用元件與日期／分類方式格式化 |
 | `Theme/` | `Classical.swift`、`Components.swift`、`ButtonStyles.swift` | 設計 token（顏色、間距、圓角、陰影、字型）與元件 |
 
-> `albumOrganizer/Persistence.swift` 與 `albumOrganizer.xcdatamodeld` 是 Xcode 範本留下的 Core Data 程式碼，目前沒有任何地方使用。
 
 ### 1.3 狀態與資料流
 
@@ -96,7 +112,7 @@ Photos 相簿 ──fetchScreenshots──▶ LibraryStore.syncWithPhotos()
                                          └─ classifierInput → ClassificationPipeline → FeatureDetector
                                               → Library.applyClassification（放進資料夾 + 加自動標籤）
 View 操作 ──store.mutate { $0.xxx }──▶ Library 改變 ──@Observable──▶ 所有畫面重繪
-                                   └─ 400ms 後寫入 library.json（進背景時立即寫）
+                                   └─ 400ms 後寫入有變動的部分（進背景時立即寫）
 View 操作 ──ui.xxx──▶ UIState（導航、選取、sheet、toast）
 ```
 
@@ -124,12 +140,14 @@ App 不複製、不搬移、不修改任何照片檔案，只讀取 Photos，並
 
 | 資料 | 怎麼取得 | 放在哪 |
 |------|------|------|
-| 截圖清單 | `fetchScreenshots()` 用 `mediaSubtypes & photoScreenshot` 篩選，新到舊；只轉成 `AssetInfo`（`localIdentifier`、建立時間、像素尺寸），不讀圖片內容 | 轉成 `Shot` 存進 `library.json` |
+| 截圖清單 | `fetchScreenshots()` 用 `mediaSubtypes & photoScreenshot` 篩選，新到舊；只轉成 `AssetInfo`（`localIdentifier`、建立時間、像素尺寸），不讀圖片內容 | 轉成 `Shot` 存進資料庫（`library.sqlite`） |
 | OCR 用的原圖 | `imageData(for:)` 以 `requestImageDataAndOrientation` 取原始解析度資料；原圖在 iCloud 時會下載（`isNetworkAccessAllowed`） | 只在記憶體，交給 Vision 辨識完就丟掉；辨識全程在裝置上，不上傳 |
-| OCR 結果 | `VisionScreenRecognizer`：繁中 + 英文文字、條碼（條碼失敗不影響文字）；座標轉成左上原點、由上到下排序、去掉狀態列 | `Shot.blocks` / `barcodes`，存進 `library.json` |
+| OCR 結果 | `VisionScreenRecognizer`：繁中 + 英文文字、條碼（條碼失敗不影響文字）；座標轉成左上原點、由上到下排序、去掉狀態列 | `Shot.blocks` / `barcodes`，存進資料庫的 `recognition` 表 |
 | 畫面上的縮圖與大圖 | `images(for:targetSize:)` 向 `PHCachingImageManager` 即時要，先給低解析度版本再給最終版本 | 最終版本放在 64MB `NSCache`（記憶體），不寫進硬碟 |
 
-`library.json` 裡只有識別碼、尺寸、日期、辨識文字、資料夾、標籤與分類狀態，**沒有任何圖片**。Photos 刪掉的截圖會在下次同步時從 Library 移除。
+資料庫裡只有識別碼、尺寸、日期、辨識文字、資料夾、標籤與分類狀態，**沒有任何圖片**。Photos 刪掉的截圖會在下次同步時從 Library 移除。
+
+資料庫的 schema、讀取失敗時的保護、寫入時機與 migration，見 [storage.md](storage.md)。
 
 首次匯入的進度條（`LibraryStore.ImportProgress`）比重是掃描 20%、OCR 70%（已辨識 / 總數）、分類 10%。辨識與分類實際上是同時進行的：佇列清空時才把步驟切到「分類」，停 600ms 後顯示「完成」，讓使用者看得到這一步。
 
@@ -193,9 +211,13 @@ albumOrganizer/
 │     └─ Resources/Fonts/           Lora、Cormorant Garamond、Noto Serif TC（OFL）
 ├─ Packages/ScreenshotKit/
 │  ├─ Sources/ScreenshotKit/        領域模型與分類（見 §1.1）
-│  └─ Tests/ScreenshotKitTests/     Library、搜尋、訊號、規則分類、pipeline 測試 + labeled-ocr.json fixture
+│  └─ Tests/ScreenshotKitTests/     Library、編解碼、變動比對、搜尋、訊號、規則分類、pipeline 測試 + fixtures
+├─ Packages/LibraryPersistence/
+│  ├─ Sources/LibraryPersistence/   SQLite 儲存層（見 storage.md）
+│  └─ Tests/LibraryPersistenceTests/ 讀寫、migration、舊 JSON 匯入測試（in-memory 資料庫）
 └─ doc/
    ├─ README.md                     本文件
+   ├─ storage.md                    資料儲存（schema、讀寫、版本升級）
    ├─ spec/                         各 tab 規格
    └─ plan/                         功能規劃紀錄
 ```
@@ -203,9 +225,10 @@ albumOrganizer/
 ## 4. 開發
 
 ```bash
-cd Packages/ScreenshotKit && swift test
+swift test --package-path Packages/ScreenshotKit
+swift test --package-path Packages/LibraryPersistence
 ```
 
-- App target 沒有測試；可測的規則請放進 `ScreenshotKit`。
+- App target 沒有測試；可測的規則請放進 `ScreenshotKit`，儲存相關的放進 `LibraryPersistence`。
 - 改了分類規則、門檻或之後的 prompt，要調高 `ClassificationPipeline.version`，既有的自動分類結果才會重做。
 - 新增功能前先在 `doc/plan/` 留規劃紀錄，做完後更新對應的 `doc/spec/`。

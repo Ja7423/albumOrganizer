@@ -1,5 +1,7 @@
 import Foundation
+import LibraryPersistence
 import Observation
+import os
 import Photos
 import ScreenshotKit
 import UIKit
@@ -33,8 +35,14 @@ final class LibraryStore {
     private(set) var isLimitedAccess = false
 
     @ObservationIgnored private let photos: PhotoLibraryService
-    @ObservationIgnored private let fileURL: URL
+    @ObservationIgnored private let persistence: any LibraryPersisting
+    /// What the store last held, so a save writes only what changed since.
+    @ObservationIgnored private var lastSaved: Library
+    /// Set when the stored library could not be read: saving then would replace data the app never saw.
+    @ObservationIgnored private var isSavingDisabled: Bool
     @ObservationIgnored private var saveTask: Task<Void, Never>?
+    /// The write in flight; the next one waits for it so an older snapshot never lands after a newer one.
+    @ObservationIgnored private var writeTask: Task<Bool, Never>?
     @ObservationIgnored private var processor: ScreenshotProcessor!
 
     private static let onboardedKey = "didFinishOnboarding"
@@ -43,13 +51,16 @@ final class LibraryStore {
         photos: PhotoLibraryService = .shared,
         recognizer: any ScreenRecognizing = VisionScreenRecognizer(),
         pipeline: ClassificationPipeline = .standard,
-        fileURL: URL = LibraryStore.defaultFileURL
+        persistence: any LibraryPersisting = LibraryStore.defaultPersistence
     ) {
         self.photos = photos
-        self.fileURL = fileURL
-        var library = (try? JSONDecoder().decode(Library.self, from: Data(contentsOf: fileURL))) ?? Library()
+        self.persistence = persistence
+        let stored = Self.loadLibrary(from: persistence)
+        var library = stored.library
         library.requeueOutdated(version: ClassificationPipeline.version)
         self.library = library
+        lastSaved = stored.library
+        isSavingDisabled = !stored.canSave
         let onboarded = UserDefaults.standard.bool(forKey: Self.onboardedKey)
         phase = onboarded && photos.hasAccess ? .app : .welcome
         processor = ScreenshotProcessor(
@@ -62,12 +73,34 @@ final class LibraryStore {
         processor.onRecognized = { [unowned self] in importProgress.recognized += 1 }
         processor.onIdle = { [unowned self] in finishImportSteps() }
         if phase == .app { startSyncing() }
+        if library != lastSaved { scheduleSave() }
     }
 
-    nonisolated static var defaultFileURL: URL {
+    /// `library.sqlite` in Application Support. A `library.json` from before SQLite is imported once.
+    nonisolated static var defaultPersistence: any LibraryPersisting {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("library.json")
+        return SQLiteLibraryDatabase(
+            databaseURL: dir.appendingPathComponent("library.sqlite"),
+            legacyJSONURL: dir.appendingPathComponent("library.json")
+        )
+    }
+
+    private static func loadLibrary(from persistence: any LibraryPersisting) -> (library: Library, canSave: Bool) {
+        do {
+            switch try persistence.load() {
+            case let .loaded(library):
+                return (library, true)
+            case .empty:
+                return (Library(), true)
+            case let .unreadable(backupURL, reason):
+                Logger.persistence.error("Library unreadable, moved aside to \(backupURL.lastPathComponent, privacy: .public): \(reason, privacy: .public)")
+                return (Library(), true)
+            }
+        } catch {
+            Logger.persistence.error("Library could not be loaded; saving is off until the next launch: \(error, privacy: .public)")
+            return (Library(), false)
+        }
     }
 
     // MARK: - Onboarding
@@ -170,21 +203,45 @@ final class LibraryStore {
         scheduleSave()
     }
 
-    /// Writes immediately, e.g. when the app moves to the background.
+    /// Starts writing without the debounce, e.g. when the app moves to the background,
+    /// and asks for background time so the write can finish.
     func saveNow() {
         saveTask?.cancel()
-        guard let data = try? JSONEncoder().encode(library) else { return }
-        try? data.write(to: fileURL, options: .atomic)
+        let application = UIApplication.shared
+        let backgroundTask = application.beginBackgroundTask(withName: "Save library")
+        Task {
+            await write(library)
+            application.endBackgroundTask(backgroundTask)
+        }
     }
 
     private func scheduleSave() {
         saveTask?.cancel()
-        let snapshot = library
-        let url = fileURL
-        saveTask = Task.detached(priority: .utility) {
+        saveTask = Task {
             try? await Task.sleep(for: .milliseconds(400))
-            guard !Task.isCancelled, let data = try? JSONEncoder().encode(snapshot) else { return }
-            try? data.write(to: url, options: .atomic)
+            guard !Task.isCancelled else { return }
+            await write(library)
         }
+    }
+
+    private func write(_ snapshot: Library) async {
+        guard !isSavingDisabled else { return }
+        let changes = snapshot.changes(since: lastSaved)
+        guard !changes.isEmpty else { return }
+        let persistence = persistence
+        let previous = writeTask
+        let task = Task.detached(priority: .utility) {
+            _ = await previous?.value
+            do {
+                try persistence.save(snapshot, changes: changes)
+                return true
+            } catch {
+                Logger.persistence.error("Saving the library failed: \(error, privacy: .public)")
+                return false
+            }
+        }
+        writeTask = task
+        // A failed write leaves `lastSaved` alone, so the next save covers these changes again.
+        if await task.value { lastSaved = snapshot }
     }
 }

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		A99420503075340000D5CBCF /* ScreenshotKit in Frameworks */ = {isa = PBXBuildFile; productRef = A99420523075340000D5CBCF /* ScreenshotKit */; };
+		A99420603075340000D5CBCF /* LibraryPersistence in Frameworks */ = {isa = PBXBuildFile; productRef = A99420623075340000D5CBCF /* LibraryPersistence */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -41,6 +42,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A99420503075340000D5CBCF /* ScreenshotKit in Frameworks */,
+				A99420603075340000D5CBCF /* LibraryPersistence in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -84,6 +86,7 @@
 			name = albumOrganizer;
 			packageProductDependencies = (
 				A99420523075340000D5CBCF /* ScreenshotKit */,
+				A99420623075340000D5CBCF /* LibraryPersistence */,
 			);
 			productName = albumOrganizer;
 			productReference = A9942036307533CF00D5CBCF /* albumOrganizer.app */;
@@ -115,6 +118,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				A99420513075340000D5CBCF /* XCLocalSwiftPackageReference "Packages/ScreenshotKit" */,
+				A99420613075340000D5CBCF /* XCLocalSwiftPackageReference "Packages/LibraryPersistence" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A9942037307533CF00D5CBCF /* Products */;
@@ -364,12 +368,20 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/ScreenshotKit;
 		};
+		A99420613075340000D5CBCF /* XCLocalSwiftPackageReference "Packages/LibraryPersistence" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/LibraryPersistence;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		A99420523075340000D5CBCF /* ScreenshotKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ScreenshotKit;
+		};
+		A99420623075340000D5CBCF /* LibraryPersistence */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = LibraryPersistence;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -155,6 +155,36 @@ public struct Shot: Codable, Hashable, Identifiable, Sendable {
     }
 }
 
+extension Shot {
+    private enum CodingKeys: String, CodingKey {
+        case id, createdAt, pixelWidth, pixelHeight, folderID, placement, tags, featureTags, dismissedFeatureTags
+        case blocks, barcodes, recognition, recognitionAttempts
+    }
+
+    /// Only the Photos identity is required. Everything else falls back to its default, so a file
+    /// written before a field existed still loads; the screenshot is then processed again if needed.
+    /// Enum values this version does not know are dropped or reset the same way.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            id: c.decode(String.self, forKey: .id),
+            createdAt: c.decode(Date.self, forKey: .createdAt),
+            pixelWidth: c.decode(Int.self, forKey: .pixelWidth),
+            pixelHeight: c.decode(Int.self, forKey: .pixelHeight),
+            folderID: c.decodeIfPresent(UUID.self, forKey: .folderID),
+            // An unknown case or classifier source sends the screenshot back through classification.
+            placement: (try? c.decodeIfPresent(Placement.self, forKey: .placement)) ?? .pending,
+            tags: c.decodeIfPresent([String].self, forKey: .tags) ?? [],
+            featureTags: c.decodeKnownValues(FeatureTag.self, forKey: .featureTags),
+            dismissedFeatureTags: c.decodeKnownValues(FeatureTag.self, forKey: .dismissedFeatureTags),
+            blocks: c.decodeIfPresent([TextBlock].self, forKey: .blocks) ?? [],
+            barcodes: c.decodeIfPresent([String].self, forKey: .barcodes) ?? [],
+            recognition: c.decodeKnownValue(RecognitionState.self, forKey: .recognition) ?? .pending,
+            recognitionAttempts: c.decodeIfPresent(Int.self, forKey: .recognitionAttempts) ?? 0
+        )
+    }
+}
+
 public struct Folder: Codable, Hashable, Identifiable, Sendable {
     public let id: UUID
     public var name: String
@@ -165,6 +195,21 @@ public struct Folder: Codable, Hashable, Identifiable, Sendable {
         self.id = id
         self.name = name
         self.builtIn = builtIn
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, builtIn
+    }
+
+    /// A built-in category this version does not know turns the folder into an ordinary one,
+    /// keeping its name and screenshots.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            id: c.decode(UUID.self, forKey: .id),
+            name: c.decode(String.self, forKey: .name),
+            builtIn: c.decodeKnownValue(BuiltInCategory.self, forKey: .builtIn)
+        )
     }
 }
 
