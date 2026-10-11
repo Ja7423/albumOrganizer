@@ -39,18 +39,30 @@ public struct Library: Codable, Hashable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case shots, folders, tags, hiddenShotIDs, deletedBuiltIns
+        case schemaVersion, shots, folders, tags, hiddenShotIDs, deletedBuiltIns
     }
 
+    /// Missing keys fall back to empty, so files written before a field existed still load.
+    /// Use `LibraryCodec` rather than decoding directly: it also refuses files from a newer schema.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         try self.init(
-            shots: c.decode([Shot].self, forKey: .shots),
-            folders: c.decode([Folder].self, forKey: .folders),
-            tags: c.decode([String].self, forKey: .tags),
-            hiddenShotIDs: c.decode(Set<String>.self, forKey: .hiddenShotIDs),
-            deletedBuiltIns: c.decode(Set<BuiltInCategory>.self, forKey: .deletedBuiltIns)
+            shots: c.decodeIfPresent([Shot].self, forKey: .shots) ?? [],
+            folders: c.decodeIfPresent([Folder].self, forKey: .folders) ?? [],
+            tags: c.decodeIfPresent([String].self, forKey: .tags) ?? [],
+            hiddenShotIDs: c.decodeIfPresent(Set<String>.self, forKey: .hiddenShotIDs) ?? [],
+            deletedBuiltIns: c.decodeKnownValues(BuiltInCategory.self, forKey: .deletedBuiltIns)
         )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(LibraryCodec.currentSchemaVersion, forKey: .schemaVersion)
+        try c.encode(shots, forKey: .shots)
+        try c.encode(folders, forKey: .folders)
+        try c.encode(tags, forKey: .tags)
+        try c.encode(hiddenShotIDs, forKey: .hiddenShotIDs)
+        try c.encode(deletedBuiltIns, forKey: .deletedBuiltIns)
     }
 
     /// Creates a folder for every built-in category that has none and was not deleted.

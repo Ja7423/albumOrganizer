@@ -1,0 +1,172 @@
+{
+  "deletedBuiltIns" : [
+    "recipe"
+  ],
+  "folders" : [
+    {
+      "builtIn" : "receipt",
+      "id" : "D29B973C-52FE-47E1-90BB-244F4181F584",
+      "name" : "收據"
+    },
+    {
+      "builtIn" : "ticket",
+      "id" : "60466F2E-20AA-4DA8-8726-3946526B61EC",
+      "name" : "票券"
+    },
+    {
+      "builtIn" : "chat",
+      "id" : "00CDE54B-1EEC-4144-AFC7-7AC42BC1286F",
+      "name" : "對話"
+    },
+    {
+      "builtIn" : "social",
+      "id" : "CD4239E4-B963-4061-8A89-75B563B905E3",
+      "name" : "社群貼文"
+    },
+    {
+      "builtIn" : "article",
+      "id" : "A8A46B25-C163-48B3-B208-C30F2DAEBC92",
+      "name" : "文章"
+    },
+    {
+      "builtIn" : "code",
+      "id" : "5D61C732-A172-44A9-9A63-895F0B9B6DC0",
+      "name" : "程式碼"
+    },
+    {
+      "builtIn" : "place",
+      "id" : "EAB45B6C-E889-45B9-B622-60649D6BCF87",
+      "name" : "地點"
+    },
+    {
+      "builtIn" : "coupon",
+      "id" : "BFABDB83-15DD-430F-92F0-6A00DDD6C3DE",
+      "name" : "優惠"
+    },
+    {
+      "builtIn" : "credential",
+      "id" : "086A68B0-4484-49EB-A51D-D9A0048A32F9",
+      "name" : "帳號資訊"
+    },
+    {
+      "builtIn" : "schedule",
+      "id" : "CC14B31A-1532-4EE2-BBC1-7CD716CCFA89",
+      "name" : "行程"
+    },
+    {
+      "builtIn" : "note",
+      "id" : "023DA6F9-D467-488C-AB1B-9A423F059401",
+      "name" : "筆記"
+    },
+    {
+      "id" : "0039B177-1CCD-4749-8016-946F26B44792",
+      "name" : "旅行"
+    }
+  ],
+  "hiddenShotIDs" : [
+    "hidden-shot"
+  ],
+  "shots" : [
+    {
+      "barcodes" : [
+        "https:\/\/example.com"
+      ],
+      "blocks" : [
+        {
+          "box" : {
+            "height" : 0.03,
+            "width" : 0.5,
+            "x" : 0.1,
+            "y" : 0.12
+          },
+          "id" : 0,
+          "text" : "電子發票證明聯"
+        }
+      ],
+      "createdAt" : 781000300,
+      "dismissedFeatureTags" : [
+        "link"
+      ],
+      "featureTags" : [
+        "date"
+      ],
+      "folderID" : "D29B973C-52FE-47E1-90BB-244F4181F584",
+      "id" : "receipt-shot",
+      "pixelHeight" : 2556,
+      "pixelWidth" : 1179,
+      "placement" : {
+        "auto" : {
+          "_0" : {
+            "classifierVersion" : 3,
+            "source" : "rule"
+          }
+        }
+      },
+      "recognition" : "done",
+      "recognitionAttempts" : 0,
+      "tags" : [
+        "報帳"
+      ]
+    },
+    {
+      "barcodes" : [
+
+      ],
+      "blocks" : [
+
+      ],
+      "createdAt" : 781000200,
+      "dismissedFeatureTags" : [
+
+      ],
+      "featureTags" : [
+
+      ],
+      "folderID" : "0039B177-1CCD-4749-8016-946F26B44792",
+      "id" : "user-shot",
+      "pixelHeight" : 2556,
+      "pixelWidth" : 1179,
+      "placement" : {
+        "user" : {
+
+        }
+      },
+      "recognition" : "failed",
+      "recognitionAttempts" : 1,
+      "tags" : [
+
+      ]
+    },
+    {
+      "barcodes" : [
+
+      ],
+      "blocks" : [
+
+      ],
+      "createdAt" : 781000100,
+      "dismissedFeatureTags" : [
+
+      ],
+      "featureTags" : [
+
+      ],
+      "id" : "pending-shot",
+      "pixelHeight" : 2532,
+      "pixelWidth" : 1170,
+      "placement" : {
+        "pending" : {
+
+        }
+      },
+      "recognition" : "pending",
+      "recognitionAttempts" : 0,
+      "tags" : [
+
+      ]
+    }
+  ],
+  "tags" : [
+    "報帳"
+  ]
+}
