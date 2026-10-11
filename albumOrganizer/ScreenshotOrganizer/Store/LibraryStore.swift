@@ -4,6 +4,7 @@ import Observation
 import os
 import Photos
 import ScreenshotKit
+import ScreenshotKitLLM
 import UIKit
 
 /// Owns the `Library`, keeps it in sync with Photos, feeds the processing queue and saves to disk.

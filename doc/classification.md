@@ -7,9 +7,11 @@
 | 處理位置 | 全部在裝置上：Vision 辨識文字、規則比對、Apple Intelligence（Foundation Models）。**不上傳任何圖片或文字** |
 | 分類結果 | 每張截圖最多一個資料夾（主類別），另外加上自動標籤（特徵） |
 | 目前版本 | `ClassificationPipeline.version = 4` |
-| 規則與純邏輯 | `Packages/ScreenshotKit`（可以在 macOS 上 `swift test`） |
-| 佇列與模型呼叫 | App target：`Services/ScreenshotProcessor.swift`、`Services/FoundationModelsClassifier.swift`、`Services/TextRecognizer.swift` |
-| 設計決策 | [plan/screenshot-auto-classification-2026-10-07.md](plan/screenshot-auto-classification-2026-10-07.md)（規則層與狀態模型）、[plan/llm-refinement-classifier-2026-10-11.md](plan/llm-refinement-classifier-2026-10-11.md)（Apple Intelligence 補判） |
+| 規則與純邏輯 | `Packages/ScreenshotKit` 的 `ScreenshotKit` target（可以在 macOS 上 `swift test`） |
+| 模型呼叫 | `Packages/ScreenshotKit` 的 `ScreenshotKitLLM` target（需要 iOS 26 / macOS 26），App 和評估工具共用 |
+| 佇列 | App target：`Services/ScreenshotProcessor.swift`、`Services/TextRecognizer.swift` |
+| 評估 | `scripts/export-labeled-shots.sh`、`swift run classification-eval`，見 §7.1 |
+| 設計決策 | [plan/screenshot-auto-classification-2026-10-07.md](plan/screenshot-auto-classification-2026-10-07.md)（規則層與狀態模型）、[plan/llm-refinement-classifier-2026-10-11.md](plan/llm-refinement-classifier-2026-10-11.md)（Apple Intelligence 補判）、[plan/classification-evaluation-2026-10-11.md](plan/classification-evaluation-2026-10-11.md)（評估工具） |
 | 文件更新日期 | 2026-10-11（對應 `feature/llm-refinement`） |
 
 ---
@@ -40,9 +42,10 @@ Photos 同步 ──▶ .pending ──OCR──▶ 訊號 ──▶ 規則層 �
 | `RuleClassifier` | `ScreenshotKit/Classification/RuleClassifier.swift` | 規則層：關鍵字、regex、訊號加分 |
 | `ClassificationPipeline` | `ScreenshotKit/Classification/ClassificationPipeline.swift` | 依序執行各層，套用每一層的門檻和排除的分類；`version` |
 | `LLMCategoryPrompt` | `ScreenshotKit/Classification/LLMCategoryPrompt.swift` | Apple Intelligence 的 instructions、prompt、可選答案、回答的解讀（純函式） |
-| `FoundationModelsClassifier` | App `Services/FoundationModelsClassifier.swift` | 呼叫裝置上的模型、分類錯誤 |
+| `FoundationModelsClassifier` | `ScreenshotKitLLM/FoundationModelsClassifier.swift` | 呼叫裝置上的模型、分類錯誤；`ClassificationPipeline.appleIntelligence`（門檻 0.6） |
 | `Library+Classification` | `ScreenshotKit/Library+Classification.swift` | 待處理名單、套用結果、版本更新時重新排入 |
 | `ScreenshotProcessor` | App `Services/ScreenshotProcessor.swift` | 兩個佇列的排程 |
+| `LabeledSample`、`ClassificationEvaluation`、`EvaluationReport` | `ScreenshotKit/Classification/Evaluation/` | 評估集、用 pipeline 跑評估、算指標（§7.1） |
 
 `ScreenshotClassifier` 協定只有一個方法 `classify(_:) async throws -> ClassifierVerdict?`，語意如下：
 
@@ -150,7 +153,7 @@ Photos 同步 ──▶ .pending ──OCR──▶ 訊號 ──▶ 規則層 �
 | 取樣 | `GenerationOptions(sampling: .greedy)` | 同樣的文字得到同樣的答案 |
 | 輸出格式 | `DynamicGenerationSchema`：`category` 只能是可選的分類 key 或 `none`；`certainty` 只能是 `high` / `medium` / `low` | 用 guided generation，模型不會回答清單以外的值。被刪除的內建分類在執行時直接從選項移除 |
 | 文字長度 | `Shot.allText` 的前 1500 個字元（`LLMCategoryPrompt.maxTextLength`） | Context 是 4096 tokens，中文大約一字一 token，要留空間給 instructions 和 schema |
-| 門檻 | 0.6（`ClassificationPipeline.appleIntelligence`） | 見 4.4 |
+| 門檻 | 0.6（`ClassificationPipeline.appleIntelligence`，在 `ScreenshotKitLLM`） | 見 4.4 |
 
 ### 4.3 Prompt（`LLMCategoryPrompt`）
 
@@ -261,9 +264,59 @@ Prompt：`Screenshot text:\n` 加上截圖文字。
 ### 7.1 改規則、門檻或 prompt
 
 1. 修改 `RuleClassifier.defaultRules`、各層的門檻、`LLMCategoryPrompt`、`BuiltInCategory.hint` 都會改變結果，**改完一定要調高 `ClassificationPipeline.version`**。
-2. 規則層：在 `RuleClassifierTests` 加上測試案例；`Tests/ScreenshotKitTests/Fixtures/labeled-ocr.json` 是標註好的 OCR 樣本，用來防止規則被改壞。
-3. Prompt：`LLMCategoryPromptTests` 只能檢查文字的組成，檢查不了模型的回答。要確認模型的行為，就照 [plan v3](plan/llm-refinement-classifier-2026-10-11.md) 的做法：把 `ScreenshotKit` 的原始碼和一個 `main.swift` 一起用 `swiftc` 編譯，在 Mac 上用相同的 instructions、schema、取樣方式直接呼叫模型，比較修改前後的結果。Mac 要開啟 Apple Intelligence。
-4. 為了少數幾筆一直調整 prompt，容易只是在配合那幾筆。測試集要同時包含應該分類和應該回答 `none` 的畫面。
+2. 規則層：在 `RuleClassifierTests` 加上測試案例；`Tests/ScreenshotKitTests/Fixtures/labeled-ocr.json` 是合成的 OCR 樣本，用來防止規則被改壞。
+3. **改之前和改之後各跑一次真實評估集**（下面的步驟），比較兩次的報告。
+4. 為了少數幾筆一直調整 prompt，容易只是在配合那幾筆。評估集要同時包含應該分類和應該留在未分類的畫面。
+
+#### 匯出評估集
+
+使用者手動搬移的截圖（`placement = 'user'`）就是正確答案：在內建資料夾裡的，正確答案是那個分類；被移出所有資料夾的，正確答案是「未分類」。
+
+```bash
+scripts/export-labeled-shots.sh
+```
+
+- 預設讀開機中模擬器的資料庫，輸出到 `eval/labeled-shots.json`。指定別的資料庫和輸出位置：`scripts/export-labeled-shots.sh <library.sqlite> <output.json>`。
+- 實機：Xcode → Devices and Simulators → 選 App → Download Container，資料庫在 `.xcappdata/AppData/Library/Application Support/library.sqlite`。
+- 略過：自建資料夾裡的截圖（目前沒有分類層會分進自建資料夾）、沒有文字的截圖（兩層都不會處理）。
+- 以唯讀方式開啟，App 開著也可以跑。
+- **`eval/` 在 `.gitignore` 裡，不要 commit**：OCR 文字可能含密碼、地址、對話內容。
+
+格式和 `labeled-ocr.json` 相同（`LabeledSample`），另外多了 `id`（`PHAsset.localIdentifier`）和 `blocks`（OCR 區塊與座標，和 `recognition.blocks` 相同）。有 `blocks` 時，對話泡泡等版面訊號用真實座標計算；手寫的樣本可以省略 `blocks`，用 `"layout": "chat"` 合成對話版面。也可以手動在匯出檔裡加樣本，或修正標錯的 `expected`。
+
+#### 執行
+
+```bash
+cd Packages/ScreenshotKit && swift run classification-eval ../../eval/labeled-shots.json
+```
+
+| 參數 | 作用 |
+|------|------|
+| `--rules-only` | 只跑規則層，不需要 Apple Intelligence |
+| `--show-errors` | 列出每一層放錯的樣本（正解 → 結果、`id`、文字前 60 字） |
+
+流程和 App 相同：規則層（`ClassificationPipeline.standard`）跑全部樣本；規則層留在未分類的樣本，再交給 Apple Intelligence（`ClassificationPipeline.appleIntelligence`）。兩層用的是 App 同一份程式碼，所以 instructions、schema、`GenerationOptions(sampling: .greedy)`、門檻都和 App 一樣。評估時不排除任何分類（App 會排除使用者刪除的內建分類）。
+
+Apple Intelligence 需要 macOS 26 並開啟 Apple Intelligence。模型不可用時只輸出規則層，結束碼是 1；Mac 上的模型版本可能和 iPhone 不同。每筆大約 0.5–2 秒。
+
+#### 讀結果
+
+報告有三節：**規則層**（全部樣本）、**Apple Intelligence**（只有規則層未分類的樣本）、**兩層合併**（App 實際會得到的結果）。每一節包含：
+
+| 項目 | 意思 | 怎麼看 |
+|------|------|------|
+| `support` / `placed` / `correct` | 正確答案是這個分類的數量／被放進這個分類的數量／放對的數量 | — |
+| `precision` | 放進這個分類的截圖中，放對的比例 | **最重要**。低代表這個分類的規則或 hint 太寬 |
+| `recall` | 屬於這個分類的截圖中，被放進來的比例 | 低代表漏掉，但只會留在未分類，代價比錯放小 |
+| 錯放率 | 放進資料夾、但不是正確分類的樣本 ÷ 全部樣本（包含應該留在未分類卻被放進資料夾） | 應該接近 0。調整門檻時先看它 |
+| 未分類率 | 留在未分類的樣本 ÷ 全部樣本 | 錯放率不變的前提下，越低越好 |
+| 放入資料夾的正確率 | 放對 ÷ 放進資料夾 | 整體的 precision |
+| 應留在未分類、也留住的比例 | 正確答案是未分類的樣本中，沒被放進資料夾的比例 | 低代表模型不太會回答 `none` |
+| 混淆矩陣 | 列是正確答案，欄是結果，`none` 是未分類 | 找出最常被搞混的兩個分類 |
+
+注意：評估集只有使用者手動搬移的截圖，常常是自動分類放錯、被使用者搬走的那些，所以指標會比整體的真實準確率差。適合拿來比較修改前後，不適合當成絕對的準確率。
+
+指標的計算在 `EvaluationReport`（純函式，`ClassificationEvaluationTests` 有測試），工具只負責讀檔和排版。
 
 ### 7.2 新增內建分類
 
@@ -282,10 +335,10 @@ Prompt：`Screenshot text:\n` 加上截圖文字。
 
 - **沒有文字的截圖不分類**：照片、純圖片的截圖會留在未分類。
 - **不會分到使用者自建的資料夾**：自建資料夾沒有描述，要等之後的相似截圖層（kNN）從使用者手動放入的截圖學習。
-- **沒有真實截圖的評估集**：規則的門檻（0.7、0.2）和 certainty 的分數對應都是推測值。
+- **門檻是推測值**：規則的門檻（0.7、0.2）和 certainty 的分數對應還沒用真實評估集調整過。評估工具見 §7.1。
 - **語言不支援時**：`unsupportedLanguageOrLocale` 會把截圖標記為已補判。如果系統之後加入支援，這些截圖不會自動重試，要靠調高版本號。
 - **未分類的數字會在使用中變少**：使用者剛好在看「未分類」時，補判完成的截圖會從畫面上消失。
-- **`FoundationModelsClassifier` 沒有自動化測試**：Foundation Models 沒辦法模擬，App 也沒有測試 target，只能手動驗證。
+- **`FoundationModelsClassifier` 沒有自動化測試**：Foundation Models 沒辦法模擬，只能用 §7.1 的評估工具在 Mac 上手動驗證。
 
 ---
 
