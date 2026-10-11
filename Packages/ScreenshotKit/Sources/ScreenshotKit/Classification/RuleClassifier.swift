@@ -114,8 +114,9 @@ public extension RuleClassifier {
         Rule(.recipe,
              keywords: ["食譜", "人份", "材料", "汆燙", "小火", "中火", "調味", "步驟", "分鐘", "少許", "大匙", "小匙", "公克", "備料"],
              hitsForFullScore: 3),
-        Rule(.coupon,
-             keywords: ["優惠碼", "折扣碼", "折價券", "優惠券", "兌換碼", "coupon", "promo code", "discount code"],
+        Rule(.shopping,
+             keywords: ["優惠碼", "折扣碼", "折價券", "優惠券", "兌換碼", "coupon", "promo code", "discount code",
+                        "加入購物車", "購物車", "立即購買", "結帳", "checkout", "免運", "運費", "規格", "售價", "特價", "已售出"],
              patterns: [#"(?s)(優惠|折扣|折價|code).{0,20}\b(?=[A-Z0-9]*[A-Z])(?=[A-Z0-9]*\d)[A-Z0-9]{4,12}\b"#]),
         Rule(.credential,
              keywords: ["密碼", "password", "passcode", "驗證碼", "wi-fi", "wifi", "帳號", "網路名稱", "SSID"],
@@ -131,5 +132,8 @@ public extension RuleClassifier {
              keywords: ["股價", "成交量", "成交價", "本益比", "殖利率", "漲跌", "漲幅", "跌幅", "開盤", "收盤", "昨收", "市值",
                         "自選股", "加權指數", "委買", "委賣", "庫存", "未實現損益", "現股", "融資", "融券", "K線"],
              patterns: [#"[+-]\d+(\.\d+)?\s*[(（]\s*[+-]?\d+(\.\d+)?\s*%\s*[)）]"#]),
+        Rule(.info,
+             keywords: ["設定", "關於本機", "軟體更新", "電池健康度", "最大容量", "充電最佳化", "儲存空間", "描述檔", "安全性", "通知", "查詢時間",
+                        "服務", "額度", "帳戶"]),
     ]
 }

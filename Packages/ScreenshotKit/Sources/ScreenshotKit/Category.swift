@@ -11,11 +11,12 @@ public enum BuiltInCategory: String, Codable, CaseIterable, Sendable {
     case code
     case place
     case recipe
-    case coupon
+    case shopping
     case credential
     case schedule
     case note
     case stock
+    case info
 
     public var defaultName: String {
         switch self {
@@ -27,11 +28,12 @@ public enum BuiltInCategory: String, Codable, CaseIterable, Sendable {
         case .code: return "程式碼"
         case .place: return "地點"
         case .recipe: return "食譜"
-        case .coupon: return "優惠"
+        case .shopping: return "購物"
         case .credential: return "帳號資訊"
         case .schedule: return "行程"
         case .note: return "筆記"
         case .stock: return "股票"
+        case .info: return "資訊"
         }
     }
 
@@ -46,11 +48,12 @@ public enum BuiltInCategory: String, Codable, CaseIterable, Sendable {
         case .code: return "程式碼、終端機畫面、錯誤訊息"
         case .place: return "地圖、店家資訊、地址"
         case .recipe: return "食譜與料理步驟"
-        case .coupon: return "優惠碼、折價券"
+        case .shopping: return "商品頁、規格與價格、購物車、優惠券與折扣碼"
         case .credential: return "密碼、Wi-Fi 資訊、驗證碼"
         case .schedule: return "會議邀請、訂位確認、活動時間"
         case .note: return "待辦、購物清單、隨手筆記"
         case .stock: return "股價、K 線、自選股、下單與庫存損益等證券 App 畫面"
+        case .info: return "系統與裝置資訊（電池、儲存空間、描述檔、軟體更新）、帳戶或服務的通知與查詢結果"
         }
     }
 }

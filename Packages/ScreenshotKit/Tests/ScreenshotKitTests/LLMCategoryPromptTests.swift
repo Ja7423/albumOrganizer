@@ -8,15 +8,15 @@ final class LLMCategoryPromptTests: XCTestCase {
     }
 
     func testDeletedBuiltInsAreNeverOffered() {
-        let excluded: Set<ClassificationTarget> = [.builtIn(.recipe), .builtIn(.coupon)]
+        let excluded: Set<ClassificationTarget> = [.builtIn(.recipe), .builtIn(.shopping)]
         let choices = LLMCategoryPrompt.choices(excluding: excluded)
         let instructions = LLMCategoryPrompt.instructions(excluding: excluded)
 
         XCTAssertFalse(choices.contains("recipe"))
-        XCTAssertFalse(choices.contains("coupon"))
+        XCTAssertFalse(choices.contains("shopping"))
         XCTAssertTrue(choices.contains("none"))
         XCTAssertFalse(instructions.contains("recipe（"))
-        XCTAssertFalse(instructions.contains(BuiltInCategory.coupon.hint))
+        XCTAssertFalse(instructions.contains(BuiltInCategory.shopping.hint))
         XCTAssertTrue(instructions.contains("- receipt（收據）：\(BuiltInCategory.receipt.hint)"))
     }
 

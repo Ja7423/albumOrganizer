@@ -6,7 +6,7 @@ public enum LLMCategoryPrompt {
     /// The answer meaning "none of these fit".
     public static let noneKey = "none"
     /// Examples of screens that fit no category, so the model sees "none" as a real choice.
-    static let noneHint = "天氣、系統設定、音樂或影片播放、計算機等其他畫面，或文字太少看不出用途"
+    static let noneHint = "天氣、音樂或影片播放、計算機、遊戲等其他畫面，或文字太少看不出用途"
     /// Roughly one token per CJK character; leaves room for instructions and schema in a 4096-token context.
     public static let maxTextLength = 1500
 

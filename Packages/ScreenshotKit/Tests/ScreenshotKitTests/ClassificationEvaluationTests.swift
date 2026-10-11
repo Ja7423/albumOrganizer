@@ -75,13 +75,13 @@ final class ClassificationEvaluationTests: XCTestCase {
     }
 
     func testOutcomesApplyTheLayerThreshold() async throws {
-        let sample = LabeledSample(expected: .coupon, text: "x")
-        let weak = ClassificationPipeline(layers: [.init(Fixed(verdict: .init(target: .builtIn(.coupon), confidence: 0.3, source: .llm)), threshold: 0.6)])
-        let strong = ClassificationPipeline(layers: [.init(Fixed(verdict: .init(target: .builtIn(.coupon), confidence: 0.9, source: .llm)), threshold: 0.6)])
+        let sample = LabeledSample(expected: .shopping, text: "x")
+        let weak = ClassificationPipeline(layers: [.init(Fixed(verdict: .init(target: .builtIn(.shopping), confidence: 0.3, source: .llm)), threshold: 0.6)])
+        let strong = ClassificationPipeline(layers: [.init(Fixed(verdict: .init(target: .builtIn(.shopping), confidence: 0.9, source: .llm)), threshold: 0.6)])
         let weakOutcomes = try await ClassificationEvaluation.outcomes(of: [sample], using: weak)
         let strongOutcomes = try await ClassificationEvaluation.outcomes(of: [sample], using: strong)
-        XCTAssertEqual(weakOutcomes, [outcome(.coupon, nil)])
-        XCTAssertEqual(strongOutcomes, [outcome(.coupon, .coupon)])
+        XCTAssertEqual(weakOutcomes, [outcome(.shopping, nil)])
+        XCTAssertEqual(strongOutcomes, [outcome(.shopping, .shopping)])
     }
 
     func testALayerThatCannotAnswerStopsTheRun() async {
