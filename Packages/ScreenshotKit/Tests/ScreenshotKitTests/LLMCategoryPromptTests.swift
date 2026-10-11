@@ -20,6 +20,11 @@ final class LLMCategoryPromptTests: XCTestCase {
         XCTAssertTrue(instructions.contains("- receipt（收據）：\(BuiltInCategory.receipt.hint)"))
     }
 
+    func testNoneIsOfferedWithExamples() {
+        let instructions = LLMCategoryPrompt.instructions(excluding: [])
+        XCTAssertTrue(instructions.contains("- none：天氣"))
+    }
+
     func testPromptCutsLongText() {
         let text = String(repeating: "字", count: LLMCategoryPrompt.maxTextLength + 100)
         let prompt = LLMCategoryPrompt.prompt(for: text)

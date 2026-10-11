@@ -3,7 +3,7 @@ import Foundation
 /// Runs the classifier layers in order and keeps the first verdict that clears its layer's threshold.
 public struct ClassificationPipeline: Sendable {
     /// Bump whenever any layer's rules, thresholds or prompt change: older automatic results get redone.
-    public static let version = 3
+    public static let version = 4
 
     public struct Layer: Sendable {
         public var classifier: any ScreenshotClassifier
