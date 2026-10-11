@@ -1,8 +1,9 @@
 import Foundation
 import ScreenshotKit
 
-/// The whole `Library` as one JSON file, rewritten on every save.
-nonisolated struct JSONLibraryFile: LibraryPersisting {
+/// The whole `Library` as one JSON file, rewritten on every save. Used before the SQLite store existed;
+/// now only read once, to import an existing `library.json`.
+struct JSONLibraryFile: LibraryPersisting {
     let fileURL: URL
     private let now: @Sendable () -> Date
 

@@ -1,4 +1,5 @@
 import Foundation
+import LibraryPersistence
 import Observation
 import os
 import Photos
@@ -75,14 +76,14 @@ final class LibraryStore {
         if library != lastSaved { scheduleSave() }
     }
 
-    nonisolated static var defaultFileURL: URL {
+    /// `library.sqlite` in Application Support. A `library.json` from before SQLite is imported once.
+    nonisolated static var defaultPersistence: any LibraryPersisting {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("library.json")
-    }
-
-    nonisolated static var defaultPersistence: any LibraryPersisting {
-        JSONLibraryFile(fileURL: defaultFileURL)
+        return SQLiteLibraryDatabase(
+            databaseURL: dir.appendingPathComponent("library.sqlite"),
+            legacyJSONURL: dir.appendingPathComponent("library.json")
+        )
     }
 
     private static func loadLibrary(from persistence: any LibraryPersisting) -> (library: Library, canSave: Bool) {

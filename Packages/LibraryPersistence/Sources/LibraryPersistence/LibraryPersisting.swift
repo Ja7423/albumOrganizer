@@ -2,7 +2,7 @@ import Foundation
 import os
 import ScreenshotKit
 
-nonisolated enum LibraryLoadResult {
+public enum LibraryLoadResult: Sendable {
     case loaded(Library)
     /// Nothing stored yet.
     case empty
@@ -11,7 +11,7 @@ nonisolated enum LibraryLoadResult {
 }
 
 /// Where the `Library` lives between launches. Called off the main actor.
-nonisolated protocol LibraryPersisting: Sendable {
+public protocol LibraryPersisting: Sendable {
     /// Throws when the store exists but cannot be read right now (e.g. the device is still locked);
     /// the caller must then not save, or it would replace data it never saw.
     func load() throws -> LibraryLoadResult
@@ -19,6 +19,6 @@ nonisolated protocol LibraryPersisting: Sendable {
     func save(_ library: Library, changes: LibraryChanges) throws
 }
 
-nonisolated extension Logger {
+public extension Logger {
     static let persistence = Logger(subsystem: Bundle.main.bundleIdentifier ?? "albumOrganizer", category: "persistence")
 }

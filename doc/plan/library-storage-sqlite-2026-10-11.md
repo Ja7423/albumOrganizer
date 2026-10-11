@@ -5,7 +5,7 @@
 | 規劃日期 | 2026-10-11 |
 | 規劃方式 | 直接規劃（依對話中 JSON / SwiftData / SQLite 的比較） |
 | 目前分支 | `main`（`a3ec6ea`，已是 Swift 6 language mode）；實作時另開 `feature/library-storage` |
-| 狀態 | 階段 1 已實作（`feature/library-storage`）；階段 2、3 待開始 |
+| 狀態 | 階段 1、2 已實作（`feature/library-storage`）；階段 3 待開始 |
 
 ## 需求摘要
 
@@ -312,6 +312,21 @@ init(
 - **列舉值容錯（v5 追加）**：`featureTags`、`dismissedFeatureTags`、`deletedBuiltIns` 略過不認得的值；`recognition`、`placement` 不認得時重設為 `pending`；`Folder.builtIn` 不認得時變成一般資料夾。原本只要一個不認得的列舉值，整份檔案就會讀取失敗並重設。規則見 [storage.md §4.2](../storage.md#42-修改資料結構)。
 - **`JSONLibraryFile` 沒有單元測試**：App target 沒有 test target。階段 2 把它移進 `Packages/LibraryPersistence` 時補上；這次在模擬器上手動驗證了舊格式、損壞檔、`schemaVersion` 過新三種情境。
 
+## 階段 2 實作紀錄
+
+和上面草案不同的地方：
+
+- **JSON 匯入做成一個 migration（`v2-import-legacy-json`），沒有另外的 `JSONImport.swift`**：靠 `DatabaseMigrator` 保證只匯入一次，而且和寫入在同一個 transaction 裡；`library.json` 讀不到時（例如裝置還沒解鎖）migration 失敗並退回，下次啟動重試。匯入成功後才把檔案改名為 `library.imported.json`。
+- **`JSONLibraryFile` 也移進 `LibraryPersistence`**（草案只移協定）：匯入直接重用它的「讀不懂就改名保留」，也終於有了單元測試。
+- **`SQLiteLibraryDatabase.init` 不會丟出錯誤**：開啟或 migration 的錯誤保存在 `Result` 裡，由 `load()` 丟出，交給 `LibraryStore` 既有的「讀不到就停用存檔」處理，不需要在 App 端另外處理初始化失敗。測試用的 in-memory 資料庫改成 internal 的 `init(opening:)`，沒有 `inMemory()`。
+- **`folder.name` 沒有 UNIQUE**：名稱不重複由 `Library` 保證。§4.2 提到的「裝回舊版再升級」邊界情況會產生同名資料夾，有 UNIQUE 的話整次存檔會失敗。
+- **`recognition` 沒有 `ocrVersion`**：和 storage.md §4.3 一致，第一次改 OCR 時再用 migration 加上。
+- **`createdAt` 存成 REAL（2001 年起算的秒數）**：GRDB 預設的 `Date` 格式只保留到毫秒，Photos 的時間戳記會在往返時改變。
+- **shot 用 upsert**：`INSERT OR REPLACE` 會先刪除 row，透過外鍵把 `recognition` 一起刪掉。
+- **platforms 維持 iOS 17 / macOS 14**：不需要 `Mutex`；`SQLiteLibraryDatabase` 是只有一個 `let` 的 final class，符合 `Sendable`，不用 `@unchecked`。
+- **GRDB 版本**：7.11.1，`Package.resolved` 一起進版控。
+- **驗證**：`LibraryPersistence` 17 個測試（in-memory 讀寫、增量寫入、外鍵、不認得的值、JSON 匯入、`JSONLibraryFile`）。模擬器上用既有的 12 張截圖驗證升級：匯入後 `shot`、`recognition`、`folder` 各 12 筆，`library.json` 改名為 `library.imported.json`，重新啟動不會重複匯入，畫面一致。**沒做**：步驟 10 用 Instruments 量測首次匯入的寫入量。
+
 ## 修訂紀錄
 
 | 版本 | 日期 | 變更 |
@@ -321,3 +336,4 @@ init(
 | v3 | 2026-10-11 | 階段 1 實作完成，新增「階段 1 實作紀錄」 |
 | v4 | 2026-10-11 | 風險新增「清掉 recognition 表不等於完整的重新辨識」，連到 storage.md §4.3 |
 | v5 | 2026-10-11 | 階段 1 追加列舉值容錯；storage.md §4.2 改寫相容性規則 |
+| v6 | 2026-10-11 | 階段 2 實作完成，新增「階段 2 實作紀錄」 |
