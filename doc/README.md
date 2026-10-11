@@ -7,7 +7,7 @@
 | 平台 | iOS 26.0+（`IPHONEOS_DEPLOYMENT_TARGET`），只支援淺色模式 |
 | UI | SwiftUI，`@Observable` 狀態，預設 actor isolation 為 `MainActor` |
 | 領域邏輯 | 本地 Swift Package `ScreenshotKit`（iOS 17 / macOS 14，可單獨 `swift test`） |
-| 儲存 | `Library` 值型別編碼成 JSON：`Application Support/library.json` |
+| 儲存 | `Library` 值型別編碼成 JSON：`Application Support/library.json`（見 [storage.md](storage.md)） |
 | 文件更新日期 | 2026-10-10（對應 commit `b86e9b5`） |
 
 ## 文件索引
@@ -15,6 +15,7 @@
 | 文件 | 內容 |
 |------|------|
 | [README.md](README.md)（本文件） | 架構、資料流、使用流程、目錄結構 |
+| [storage.md](storage.md) | 資料儲存：`library.json` 的架構、schema、讀寫與版本升級機制 |
 | [spec/tab-screenshots.md](spec/tab-screenshots.md) | 「截圖」tab：所有截圖 grid、篩選 chip、批次選取 |
 | [spec/tab-folders.md](spec/tab-folders.md) | 「資料夾」tab：資料夾列表、處理中／未分類、新增／改名／刪除 |
 | [spec/tab-tags.md](spec/tab-tags.md) | 「標籤」tab：自動標籤、我的標籤、新增／刪除 |
@@ -57,6 +58,8 @@
 |------|------|
 | `Library.swift` | 資料根。`Scope` 篩選、Photos 同步（`sync(with:)`）、資料夾 CRUD、標籤 CRUD、`hide`（從 App 移除） |
 | `Library+Classification.swift` | 待分類清單、`classifierInput`、`applyClassification`（使用者手動搬過就不覆蓋）、`requeueOutdated` |
+| `LibraryCodec.swift` | `library.json` 的編解碼：缺少的欄位用預設值、略過不認得的列舉值、拒絕比目前新的 `schemaVersion` |
+| `LibraryChanges.swift` | `Library.changes(since:)`：比對兩份 Library，算出哪些截圖、資料夾、標籤有變動 |
 | `Models.swift` | `Shot`、`Folder`、`TextBlock`、`NormalizedRect`、`AssetInfo`、`TextBlockFilter`（去掉狀態列文字） |
 | `Placement.swift` | `Placement`：`.pending`（處理中）/ `.auto(source, version)` / `.user`（鎖定） |
 | `Category.swift` | 12 個內建類別 `BuiltInCategory`（key 固定、名稱只是顯示） |
@@ -70,7 +73,9 @@
 | 目錄 | 檔案 | 職責 |
 |------|------|------|
 | `App/` | `ScreenshotOrganizerApp.swift` | 建立 `LibraryStore`、`UIState` 放進 environment；`RootView` 依 `store.phase` 切換 Onboarding / AppShell；監聽 scenePhase（進背景立即存檔、回前景重新同步） |
-| `Store/` | `LibraryStore.swift` | 持有 `Library`；首次匯入流程；Photos 同步；餵處理佇列；`mutate` 後 400ms debounce 存檔 |
+| `Store/` | `LibraryStore.swift` | 持有 `Library`；首次匯入流程；Photos 同步；餵處理佇列；`mutate` 後 400ms debounce 存檔（沒有變動就不寫） |
+| | `LibraryPersisting.swift` | 儲存層協定（`load` / `save`）與 `LibraryLoadResult`；`Logger.persistence` |
+| | `JSONLibraryFile.swift` | 目前的儲存實作：整份寫入 `library.json`；讀不懂的檔案改名保留 |
 | | `UIState.swift` | 目前 tab、截圖 tab 的 chip、各 tab 的 NavigationStack path、批次選取、詳細頁、sheet、dialog、toast |
 | | `DetailSession.swift` | 詳細頁開啟時拍下的 id 清單與目前頁 |
 | `Services/` | `PhotoLibraryService.swift` | 權限、撈出所有螢幕截圖、變更通知、縮圖串流（`PHCachingImageManager` + 64MB `NSCache`）、原圖資料 |
@@ -84,7 +89,6 @@
 | `Views/Common/` | `AssetImage`、`LimitedAccessBanner`、`ShotFormat` | 共用元件與日期／分類方式格式化 |
 | `Theme/` | `Classical.swift`、`Components.swift`、`ButtonStyles.swift` | 設計 token（顏色、間距、圓角、陰影、字型）與元件 |
 
-> `albumOrganizer/Persistence.swift` 與 `albumOrganizer.xcdatamodeld` 是 Xcode 範本留下的 Core Data 程式碼，目前沒有任何地方使用。
 
 ### 1.3 狀態與資料流
 
@@ -96,7 +100,7 @@ Photos 相簿 ──fetchScreenshots──▶ LibraryStore.syncWithPhotos()
                                          └─ classifierInput → ClassificationPipeline → FeatureDetector
                                               → Library.applyClassification（放進資料夾 + 加自動標籤）
 View 操作 ──store.mutate { $0.xxx }──▶ Library 改變 ──@Observable──▶ 所有畫面重繪
-                                   └─ 400ms 後寫入 library.json（進背景時立即寫）
+                                   └─ 400ms 後寫入有變動的部分（進背景時立即寫）
 View 操作 ──ui.xxx──▶ UIState（導航、選取、sheet、toast）
 ```
 
@@ -130,6 +134,8 @@ App 不複製、不搬移、不修改任何照片檔案，只讀取 Photos，並
 | 畫面上的縮圖與大圖 | `images(for:targetSize:)` 向 `PHCachingImageManager` 即時要，先給低解析度版本再給最終版本 | 最終版本放在 64MB `NSCache`（記憶體），不寫進硬碟 |
 
 `library.json` 裡只有識別碼、尺寸、日期、辨識文字、資料夾、標籤與分類狀態，**沒有任何圖片**。Photos 刪掉的截圖會在下次同步時從 Library 移除。
+
+`library.json` 的 schema、讀檔失敗時的保護、寫入時機與版本升級方式，見 [storage.md](storage.md)。
 
 首次匯入的進度條（`LibraryStore.ImportProgress`）比重是掃描 20%、OCR 70%（已辨識 / 總數）、分類 10%。辨識與分類實際上是同時進行的：佇列清空時才把步驟切到「分類」，停 600ms 後顯示「完成」，讓使用者看得到這一步。
 
@@ -193,9 +199,10 @@ albumOrganizer/
 │     └─ Resources/Fonts/           Lora、Cormorant Garamond、Noto Serif TC（OFL）
 ├─ Packages/ScreenshotKit/
 │  ├─ Sources/ScreenshotKit/        領域模型與分類（見 §1.1）
-│  └─ Tests/ScreenshotKitTests/     Library、搜尋、訊號、規則分類、pipeline 測試 + labeled-ocr.json fixture
+│  └─ Tests/ScreenshotKitTests/     Library、編解碼、變動比對、搜尋、訊號、規則分類、pipeline 測試 + fixtures
 └─ doc/
    ├─ README.md                     本文件
+   ├─ storage.md                    資料儲存（schema、讀寫、版本升級）
    ├─ spec/                         各 tab 規格
    └─ plan/                         功能規劃紀錄
 ```
