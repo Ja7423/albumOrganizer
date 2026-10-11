@@ -42,9 +42,9 @@ public enum BuiltInCategory: String, Codable, CaseIterable, Sendable {
         switch self {
         case .receipt: return "發票、訂單明細、付款完成畫面"
         case .ticket: return "登機證、車票、電影票、入場 QR code"
-        case .chat: return "LINE、iMessage、Messenger 等聊天畫面"
-        case .social: return "Instagram、Threads、Facebook、X 的貼文"
-        case .article: return "新聞、部落格文章、書摘"
+        case .chat: return "LINE、iMessage、Messenger 等通訊 App 裡，人與人來回傳訊息的對話畫面（有訊息泡泡、輸入框）"
+        case .social: return "社群 App 動態裡的貼文與留言：有發文者名稱、「追蹤」、發文多久前（例如「4小時」「26分鐘」），以及按讚、留言、分享、回覆"
+        case .article: return "用瀏覽器或 App 內瀏覽器開啟的網頁：頂端常有網址或網域（例如 www.xxx.com），內容是新聞、部落格、小說或故事連載、書摘、廣告或介紹頁"
         case .code: return "程式碼、終端機畫面、錯誤訊息"
         case .place: return "地圖、店家資訊、地址"
         case .recipe: return "食譜與料理步驟"
