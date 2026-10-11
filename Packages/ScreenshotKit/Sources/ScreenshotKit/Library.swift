@@ -65,11 +65,16 @@ public struct Library: Codable, Hashable, Sendable {
         try c.encode(deletedBuiltIns, forKey: .deletedBuiltIns)
     }
 
-    /// Creates a folder for every built-in category that has none and was not deleted.
+    /// Creates a folder for every built-in category that has none and was not deleted. A user folder with
+    /// the category's name becomes that category's folder instead, so a new category never duplicates a name.
     private mutating func addMissingBuiltInFolders() {
         let present = Set(folders.compactMap(\.builtIn))
         for category in BuiltInCategory.allCases where !present.contains(category) && !deletedBuiltIns.contains(category) {
-            folders.append(Folder(name: category.defaultName, builtIn: category))
+            if let index = folders.firstIndex(where: { $0.builtIn == nil && $0.name == category.defaultName }) {
+                folders[index] = Folder(id: folders[index].id, name: folders[index].name, builtIn: category)
+            } else {
+                folders.append(Folder(name: category.defaultName, builtIn: category))
+            }
         }
     }
 

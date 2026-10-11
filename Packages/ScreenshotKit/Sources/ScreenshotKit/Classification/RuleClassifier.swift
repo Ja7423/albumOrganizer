@@ -126,5 +126,10 @@ public extension RuleClassifier {
              signalScore: { $0.dates > 0 ? 0.3 : 0 }),
         Rule(.note,
              keywords: ["待辦", "to-do", "todo", "記得", "別忘", "deadline", "購物清單", "採買", "要買", "備忘錄", "筆記"]),
+        // Not 「最高／最低」: weather screens use them too.
+        Rule(.stock,
+             keywords: ["股價", "成交量", "成交價", "本益比", "殖利率", "漲跌", "漲幅", "跌幅", "開盤", "收盤", "昨收", "市值",
+                        "自選股", "加權指數", "委買", "委賣", "庫存", "未實現損益", "現股", "融資", "融券", "K線"],
+             patterns: [#"[+-]\d+(\.\d+)?\s*[(（]\s*[+-]?\d+(\.\d+)?\s*%\s*[)）]"#]),
     ]
 }

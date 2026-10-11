@@ -67,11 +67,11 @@
 | `LibraryChanges.swift` | `Library.changes(since:)`：比對兩份 Library，算出哪些截圖、資料夾、標籤有變動 |
 | `Models.swift` | `Shot`、`Folder`、`TextBlock`、`NormalizedRect`、`AssetInfo`、`TextBlockFilter`（去掉狀態列文字） |
 | `Placement.swift` | `Placement`：`.pending`（處理中）/ `.auto(source, version, isRefined)` / `.user`（鎖定） |
-| `Category.swift` | 12 個內建類別 `BuiltInCategory`（key 固定、名稱只是顯示） |
+| `Category.swift` | 13 個內建類別 `BuiltInCategory`（key 固定、名稱只是顯示） |
 | `FeatureTag.swift` / `FeatureDetector.swift` | 自動標籤：含連結、QR code、含電話、含日期、含地址 |
 | `Signals.swift` | 從文字與版面算出訊號（連結、電話、日期、地址、條碼數、對話泡泡、程式符號密度） |
 | `Search.swift` | 全文搜尋，回傳切好前後文的 `SearchHit` |
-| `Classification/*` | 分類器協定、依序執行各層的 `ClassificationPipeline`（目前 `version = 4`）、規則層 `RuleClassifier`、Apple Intelligence 的 prompt `LLMCategoryPrompt`（見 [classification.md](classification.md)） |
+| `Classification/*` | 分類器協定、依序執行各層的 `ClassificationPipeline`（目前 `version = 5`）、規則層 `RuleClassifier`、Apple Intelligence 的 prompt `LLMCategoryPrompt`（見 [classification.md](classification.md)） |
 
 `LibraryPersistence`（`Packages/LibraryPersistence`，儲存層）依賴 `ScreenshotKit` 與 GRDB，是專案裡唯一碰到 SQLite 的地方：
 

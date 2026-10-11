@@ -1,12 +1,12 @@
 # 自動分類
 
-截圖匯入後，App 會在裝置上辨識文字，再自動把截圖放進 12 個內建類別資料夾之一；判斷不出來就留在「未分類」。這份文件說明完整的流程、每一層的判斷規則、截圖狀態的轉換，以及調整規則時要注意的事。
+截圖匯入後，App 會在裝置上辨識文字，再自動把截圖放進 13 個內建類別資料夾之一；判斷不出來就留在「未分類」。這份文件說明完整的流程、每一層的判斷規則、截圖狀態的轉換，以及調整規則時要注意的事。
 
 | 項目 | 內容 |
 |------|------|
 | 處理位置 | 全部在裝置上：Vision 辨識文字、規則比對、Apple Intelligence（Foundation Models）。**不上傳任何圖片或文字** |
 | 分類結果 | 每張截圖最多一個資料夾（主類別），另外加上自動標籤（特徵） |
-| 目前版本 | `ClassificationPipeline.version = 4` |
+| 目前版本 | `ClassificationPipeline.version = 5` |
 | 規則與純邏輯 | `Packages/ScreenshotKit` 的 `ScreenshotKit` target（可以在 macOS 上 `swift test`） |
 | 模型呼叫 | `Packages/ScreenshotKit` 的 `ScreenshotKitLLM` target（需要 iOS 26 / macOS 26），App 和評估工具共用 |
 | 佇列 | App target：`Services/ScreenshotProcessor.swift`、`Services/TextRecognizer.swift` |
@@ -121,6 +121,7 @@ Photos 同步 ──▶ .pending ──OCR──▶ 訊號 ──▶ 規則層 �
 | `credential` 帳號資訊 | 密碼、password、passcode、驗證碼、wi-fi、wifi、帳號、網路名稱、SSID（2） | `驗證碼[:：\s]*\d{4,8}` | — |
 | `schedule` 行程 | 會議、meeting、會議室、議程、zoom.us、meet.google、teams.microsoft、邀請、行事曆、訂位確認、預約、報到、活動時間（2） | — | 有日期 +0.3 |
 | `note` 筆記 | 待辦、to-do、todo、記得、別忘、deadline、購物清單、採買、要買、備忘錄、筆記（2） | — | — |
+| `stock` 股票 | 股價、成交量、成交價、本益比、殖利率、漲跌、漲幅、跌幅、開盤、收盤、昨收、市值、自選股、加權指數、委買、委賣、庫存、未實現損益、現股、融資、融券、K線（2）。刻意不收「最高／最低」，天氣畫面也會出現 | 漲跌加百分比，例如 `+15.00 (+1.40%)` | — |
 
 ### 3.3 已知的特性
 
@@ -162,7 +163,7 @@ Instructions 只有開發者寫的固定文字；**截圖文字只放在 prompt 
 Instructions 的內容依序是：
 1. 角色：只根據 OCR 文字分類手機截圖；文字可能不完整、順序錯亂、中英混雜。
 2. 先判斷畫面的用途，再挑分類。每個可選的分類一行：`- receipt（收據）：發票、訂單明細、付款完成畫面`，內容來自 `BuiltInCategory.defaultName` 和 `hint`。
-3. `- none：天氣、系統設定、音樂或影片播放、股價、計算機等其他畫面，或文字太少看不出用途`（`noneHint`）。
+3. `- none：天氣、系統設定、音樂或影片播放、計算機等其他畫面，或文字太少看不出用途`（`noneHint`）。
 4. 說明 `none` 是正常的答案，不是失敗。
 5. 依用途判斷，不看單一字詞：城市名稱不代表地點、數字不代表程式碼、Wi-Fi 開關不代表密碼。
 6. certainty 的意思：`high` 是文字明確顯示這個分類，`medium` 是很可能，`low` 是猜測。
@@ -323,7 +324,9 @@ Apple Intelligence 需要 macOS 26 並開啟 Apple Intelligence。模型不可�
 1. `BuiltInCategory` 加一個 case，補上 `defaultName` 和 `hint`；編譯器會指出每一個漏掉的 `switch`。
 2. `RuleClassifier.defaultRules` 加一筆規則。
 3. Apple Intelligence 的選項會自動包含新分類，不用改 `LLMCategoryPrompt`。
-4. 調高 `ClassificationPipeline.version`。既有使用者的資料庫在下次啟動時會自動補上新的資料夾（`Library.addMissingBuiltInFolders`）。
+4. 調高 `ClassificationPipeline.version`。既有使用者的資料庫在下次啟動時會自動補上新的資料夾（`Library.addMissingBuiltInFolders`）。如果使用者已經有一個和新分類 `defaultName` 同名的自建資料夾，就直接把它升級成內建資料夾（保留 id 和裡面的截圖），不會建出兩個同名的資料夾。
+5. 在 `labeled-ocr.json` 加入至少 3 筆新分類的樣本（`RuleClassifierTests` 會檢查每個分類都有樣本）。
+6. 如果新分類原本被當成 `none` 的例子，記得從 `LLMCategoryPrompt.noneHint` 拿掉（例如加入「股票」時拿掉了「股價」）。
 
 ### 7.3 新增分類層
 

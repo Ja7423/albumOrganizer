@@ -38,5 +38,9 @@
   { "expected": null, "text": "總計" },
   { "expected": null, "text": "今天天氣很好\n我們去散步吧" },
   { "expected": null, "text": "設定\n通用\n關於本機\n軟體更新" },
-  { "expected": null, "text": "seat" }
+  { "expected": null, "text": "seat" },
+  { "expected": "stock", "text": "台積電 2330\n1,085.00\n+15.00 (+1.40%)\n成交量 32,451\n本益比 24.3" },
+  { "expected": "stock", "text": "自選股\n加權指數 22,318.45\n鴻海 2317 212.5\n聯發科 2454 1,320" },
+  { "expected": "stock", "text": "庫存\n現股 台積電 1,000 股\n未實現損益 +85,000\n報酬率 +8.5%" },
+  { "expected": null, "text": "台北市\n多雲時晴 28°\n明天 最高 31° 最低 25°\n降雨機率 20%" }
 ]

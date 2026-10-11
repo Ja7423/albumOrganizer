@@ -195,6 +195,14 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(lib.shot("auto")?.autoPlacement?.source, nil)
     }
 
+    func testNewBuiltInAdoptsUserFolderWithItsName() throws {
+        let mine = Folder(name: "股票")
+        let lib = Library(folders: [mine])
+
+        XCTAssertEqual(lib.folders.filter { $0.name == "股票" }.count, 1)
+        XCTAssertEqual(lib.folders.first { $0.id == mine.id }?.builtIn, .stock)
+    }
+
     func testDeletedBuiltInIsNotRecreatedAfterReload() throws {
         var lib = Library()
         try lib.deleteFolder(XCTUnwrap(builtInFolder(lib, .note)?.id))

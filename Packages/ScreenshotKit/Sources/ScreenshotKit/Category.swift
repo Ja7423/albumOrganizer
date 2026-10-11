@@ -15,6 +15,7 @@ public enum BuiltInCategory: String, Codable, CaseIterable, Sendable {
     case credential
     case schedule
     case note
+    case stock
 
     public var defaultName: String {
         switch self {
@@ -30,6 +31,7 @@ public enum BuiltInCategory: String, Codable, CaseIterable, Sendable {
         case .credential: return "帳號資訊"
         case .schedule: return "行程"
         case .note: return "筆記"
+        case .stock: return "股票"
         }
     }
 
@@ -48,6 +50,7 @@ public enum BuiltInCategory: String, Codable, CaseIterable, Sendable {
         case .credential: return "密碼、Wi-Fi 資訊、驗證碼"
         case .schedule: return "會議邀請、訂位確認、活動時間"
         case .note: return "待辦、購物清單、隨手筆記"
+        case .stock: return "股價、K 線、自選股、下單與庫存損益等證券 App 畫面"
         }
     }
 }
