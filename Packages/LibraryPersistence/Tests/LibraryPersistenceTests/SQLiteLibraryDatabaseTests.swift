@@ -87,6 +87,25 @@ final class SQLiteLibraryDatabaseTests: XCTestCase {
         XCTAssertEqual(loaded.folders.map(\.name), changed.folders.map(\.name))
     }
 
+    /// A fresh store starts from `Library()`, whose built-in folders exist only in memory, so the first
+    /// save sees no folder changes. Placing a screenshot in one must still save.
+    func testPlacingAShotInAnUnsavedBuiltInFolderSaves() throws {
+        let db = try InMemoryLibrary()
+        let empty = Library()
+        var synced = empty
+        synced.sync(with: [AssetInfo(id: "new-shot", createdAt: Date(), pixelWidth: 1170, pixelHeight: 2532)])
+        try db.store.save(synced, changes: synced.changes(since: empty))
+
+        let ticket = try XCTUnwrap(synced.folders.first { $0.builtIn != nil })
+        var placed = synced
+        placed.move(["new-shot"], to: ticket.id)
+        try db.store.save(placed, changes: placed.changes(since: synced))
+
+        let loaded = try XCTUnwrap(db.loadLibrary())
+        XCTAssertEqual(loaded.shot("new-shot")?.folderID, ticket.id)
+        XCTAssertEqual(loaded.folders, placed.folders)
+    }
+
     func testValuesFromAnotherAppVersionAreTolerated() throws {
         let (db, _) = try savedFixture()
         try db.queue.write { db in

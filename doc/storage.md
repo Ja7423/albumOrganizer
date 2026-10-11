@@ -175,6 +175,8 @@ GRDB 把已經執行過的 migration 記在 `grdb_migrations` 表。
 
 讀到之後會立刻執行 `requeueOutdated(version: ClassificationPipeline.version)`，把舊版分類器的自動結果送回處理中。如果因此有任何變動，會排一次存檔。
 
+資料庫裡缺少的內建資料夾（全新安裝，或新版本新增的分類），`Library` 會在記憶體裡補上，ID 每次啟動都不同。`lastSaved` 也包含這些資料夾，所以它們不算變動；等到下一次有截圖要寫入時，才會跟著寫進資料庫（見 3.3）。
+
 ### 3.3 寫入
 
 **存檔時機**（`LibraryStore`）：
@@ -200,13 +202,14 @@ store.mutate { $0.xxx }
 
 | 順序 | 動作 | 什麼時候 |
 |:----:|------|------|
-| 1 | upsert 所有 `folder`（更新 `position`） | `hasFolderChanges` |
+| 1 | upsert 所有 `folder`（更新 `position`） | `hasFolderChanges`，或有變動的截圖時 |
 | 2 | 刪除 `deletedShotIDs` 的 `shot`（`recognition` 由外鍵一起刪除） | 有刪除的截圖時 |
 | 3 | upsert `upsertedShotIDs` 的 `shot` 和 `recognition` | 有變動的截圖時 |
 | 4 | 刪除已經不在 Library 裡的 `folder` | `hasFolderChanges` |
 | 5 | `tag`、`hiddenShot`、`deletedBuiltIn` 整張表重寫 | 各自的 `has…Changes` |
 
 - 資料夾先 upsert、最後才刪除：截圖可能搬進新資料夾（外鍵要求資料夾先存在），被刪的資料夾在 `Library` 裡已經沒有截圖指向它。
+- 有截圖要寫入時，就算 `hasFolderChanges` 是 false 也 upsert 資料夾：`Library()` 和讀出來的 `Library` 會在記憶體裡補上內建資料夾，跟它比對的差異永遠不會包含這些資料夾。只靠 `hasFolderChanges` 的話，全新資料庫裡就沒有內建資料夾，截圖一分類進去就外鍵失敗，之後每次存檔都失敗。
 - 截圖用 **upsert**（`INSERT … ON CONFLICT DO UPDATE`），不用 `INSERT OR REPLACE`：REPLACE 會先刪掉舊的 row，觸發外鍵把 `recognition` 一起刪除。
 - `tag` 等三張表很小，整張重寫比算出差異簡單。
 
