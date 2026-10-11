@@ -57,7 +57,7 @@ struct AssetImage: View {
 
 extension UIImage {
     /// Width × height in pixels.
-    var pixelArea: CGFloat {
+    nonisolated var pixelArea: CGFloat {
         size.width * scale * size.height * scale
     }
 }
