@@ -5,8 +5,10 @@ struct SearchScreen: View {
     @Environment(LibraryStore.self) private var store
     @Environment(UIState.self) private var ui
     @State private var query = ""
+    @State private var recent = RecentSearches(UserDefaults.standard.stringArray(forKey: Self.recentKey) ?? [])
     @FocusState private var focused: Bool
 
+    private static let recentKey = "recentSearches"
     private let examples = ["密碼", "訂單編號", "地址", "發票"]
 
     var body: some View {
@@ -21,16 +23,11 @@ struct SearchScreen: View {
                 field
 
                 if q.isEmpty {
-                    Kicker("試試搜尋").padding(.top, 24)
-                    FlowLayout {
-                        ForEach(examples, id: \.self) { example in
-                            Button { query = example } label: {
-                                TagChip(text: example, style: .neutral, size: .regular, horizontalPadding: 12)
-                            }
-                            .buttonStyle(.plain)
-                        }
+                    if recent.queries.isEmpty {
+                        suggestions("試試搜尋", examples)
+                    } else {
+                        suggestions("最近搜尋", recent.queries, onClear: clearRecent)
                     }
-                    .padding(.top, 8)
                     Text("每張截圖匯入時都會辨識文字，所以可以直接搜尋圖片裡的密碼、地址、訂單編號。")
                         .font(Typeface.body(14))
                         .foregroundStyle(Palette.neutral700)
@@ -48,6 +45,7 @@ struct SearchScreen: View {
                         if let shot = store.library.shot(hit.shotID) {
                             ResultRow(shot: shot, hit: hit, meta: meta(for: shot)) {
                                 focused = false
+                                remember(q)
                                 ui.openDetail(shot.id, in: hits.map(\.shotID))
                             }
                         }
@@ -77,6 +75,7 @@ struct SearchScreen: View {
             TextField("圖中文字或標籤", text: $query)
                 .focused($focused)
                 .submitLabel(.search)
+                .onSubmit { remember(query) }
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
                 .font(Typeface.body(16))
@@ -93,6 +92,39 @@ struct SearchScreen: View {
         .frame(minHeight: 46)
         .tint(Palette.accent)
         .background(RoundedRectangle(cornerRadius: Radius.md).strokeBorder(focused ? Palette.accent : Palette.divider, lineWidth: 1))
+    }
+
+    @ViewBuilder
+    private func suggestions(_ title: String, _ queries: [String], onClear: (() -> Void)? = nil) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Kicker(title)
+            Spacer(minLength: 0)
+            if let onClear {
+                Button("清除", action: onClear)
+                    .buttonStyle(ClassicalButtonStyle(kind: .ghost, fontSize: 13))
+                    .accessibilityLabel("清除最近搜尋")
+            }
+        }
+        .padding(.top, 24)
+        FlowLayout {
+            ForEach(queries, id: \.self) { suggestion in
+                Button { query = suggestion } label: {
+                    TagChip(text: suggestion, style: .neutral, size: .regular, horizontalPadding: 12)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.top, 8)
+    }
+
+    private func remember(_ query: String) {
+        recent = recent.recording(query)
+        UserDefaults.standard.set(recent.queries, forKey: Self.recentKey)
+    }
+
+    private func clearRecent() {
+        recent = RecentSearches()
+        UserDefaults.standard.removeObject(forKey: Self.recentKey)
     }
 
     private func meta(for shot: Shot) -> String {
