@@ -58,11 +58,7 @@ struct ShotDetailScreen: View {
                 }
                 .buttonStyle(.ghost)
 
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(shot.title).font(Typeface.body(15, .semibold)).lineLimit(1)
-                    Text(ShotFormat.shortDate(shot.createdAt)).font(Typeface.body(11)).foregroundStyle(Palette.neutral700)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer()
 
                 ShareLink(item: ShotImage(id: shot.id), preview: SharePreview(shot.title)) {
                     Image(systemName: "square.and.arrow.up").font(.system(size: 17))
