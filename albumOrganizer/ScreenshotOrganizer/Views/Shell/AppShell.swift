@@ -59,9 +59,10 @@ struct AppShell: View {
 
 // MARK: - Tab bar
 
-/// Left-aligned icon over label, ruled columns, and an accent rule over the active tab.
+/// A floating capsule of centered icon-over-label tabs; a soft pill slides under the active one.
 struct TabBar: View {
     @Environment(UIState.self) private var ui
+    @Namespace private var pill
 
     private let items: [(UIState.Tab, String, String)] = [
         (.all, "截圖", "photo.on.rectangle"),
@@ -71,32 +72,34 @@ struct TabBar: View {
     ]
 
     var body: some View {
-        VStack(spacing: 0) {
-            Hairline()
-            HStack(spacing: 0) {
-                ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                    let on = ui.tab == item.0
-                    if index > 0 { Rectangle().fill(Palette.divider).frame(width: 1) }
-                    Button { ui.selectTab(item.0) } label: {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Image(systemName: item.2).font(.system(size: 19, weight: on ? .semibold : .regular)).frame(height: 24)
-                            Text(item.1).font(Typeface.body(11, on ? .semibold : .regular)).tracking(0.22)
-                        }
-                        .foregroundStyle(on ? Palette.accent700 : Palette.neutral700)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                        .padding(.top, 10)
-                        .padding(.leading, 14)
-                        .overlay(alignment: .top) {
-                            Rectangle().fill(on ? Palette.accent : .clear).frame(height: 1).offset(y: -1)
-                        }
-                        .contentShape(Rectangle())
+        HStack(spacing: 0) {
+            ForEach(items, id: \.0) { item in
+                let on = ui.tab == item.0
+                Button { ui.selectTab(item.0) } label: {
+                    VStack(spacing: 3) {
+                        Image(systemName: item.2).font(.system(size: 18, weight: on ? .semibold : .regular)).frame(height: 22)
+                        Text(item.1).font(Typeface.body(11, on ? .semibold : .regular)).tracking(0.22)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(on ? .isSelected : [])
+                    .foregroundStyle(on ? Palette.accent700 : Palette.neutral500)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background {
+                        if on {
+                            Capsule().fill(Palette.neutral200.opacity(0.6)).matchedGeometryEffect(id: "pill", in: pill)
+                        }
+                    }
+                    .contentShape(Capsule())
                 }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(on ? .isSelected : [])
             }
-            .frame(height: 49)
         }
+        .padding(4)
+        .frame(height: 60)
+        .background(Capsule().fill(Palette.neutral100).shadowMD())
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: ui.tab)
+        .padding(.horizontal, 16)
+        .padding(.top, 6)
+        .padding(.bottom, 4)
         .background(Palette.bg.ignoresSafeArea(edges: .bottom))
     }
 }
