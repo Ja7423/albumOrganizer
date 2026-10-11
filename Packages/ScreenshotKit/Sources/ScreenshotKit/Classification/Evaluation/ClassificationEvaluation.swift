@@ -12,13 +12,18 @@ public struct EvaluationOutcome: Hashable, Sendable {
 }
 
 public enum ClassificationEvaluation {
-    /// One outcome per sample, in order, using the pipeline's thresholds. Throws when a layer cannot
-    /// answer right now (e.g. the model is unavailable), so that is never counted as "no answer".
-    public static func outcomes(of samples: [LabeledSample], using pipeline: ClassificationPipeline) async throws -> [EvaluationOutcome] {
+    /// One outcome per sample, in order, using the pipeline's thresholds. `excluded` plays the deleted
+    /// built-ins, as in the app. Throws when a layer cannot answer right now (e.g. the model is
+    /// unavailable), so that is never counted as "no answer".
+    public static func outcomes(
+        of samples: [LabeledSample],
+        using pipeline: ClassificationPipeline,
+        excluding excluded: Set<ClassificationTarget> = []
+    ) async throws -> [EvaluationOutcome] {
         var outcomes: [EvaluationOutcome] = []
         outcomes.reserveCapacity(samples.count)
         for sample in samples {
-            let verdict = try await pipeline.classifyOrThrow(sample.classifierInput)
+            let verdict = try await pipeline.classifyOrThrow(sample.classifierInput(excluding: excluded))
             outcomes.append(EvaluationOutcome(expected: sample.expected, predicted: verdict.flatMap(builtInCategory)))
         }
         return outcomes

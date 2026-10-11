@@ -23,8 +23,8 @@ final class ClassificationEvaluationTests: XCTestCase {
     }
 
     func testRatiosAreNilWithoutADenominator() {
-        let report = EvaluationReport([outcome(.chat, nil)])
-        XCTAssertNil(report.categories[.chat]?.precision)
+        let report = EvaluationReport([outcome(.recipe, nil)])
+        XCTAssertNil(report.categories[.recipe]?.precision)
         XCTAssertNil(report.categories[.note]?.recall)
         XCTAssertNil(report.placedPrecision)
         XCTAssertNil(report.noneAccuracy)
@@ -56,10 +56,10 @@ final class ClassificationEvaluationTests: XCTestCase {
     // MARK: Cascade
 
     func testCascadeOnlyFillsWhatTheFirstPassLeftUnsorted() {
-        let first = [outcome(.chat, .chat), outcome(.note, nil), outcome(nil, nil)]
+        let first = [outcome(.recipe, .recipe), outcome(.note, nil), outcome(nil, nil)]
         XCTAssertEqual(ClassificationEvaluation.unsortedIndices(first), [1, 2])
         let second = [outcome(.note, .note), outcome(nil, nil)]
-        XCTAssertEqual(ClassificationEvaluation.cascade(first, then: second), [outcome(.chat, .chat), outcome(.note, .note), outcome(nil, nil)])
+        XCTAssertEqual(ClassificationEvaluation.cascade(first, then: second), [outcome(.recipe, .recipe), outcome(.note, .note), outcome(nil, nil)])
     }
 
     // MARK: Running a pipeline
@@ -106,7 +106,7 @@ final class ClassificationEvaluationTests: XCTestCase {
 
     func testRealBlocksDriveTheLayoutSignals() throws {
         let json = """
-        { "expected": "chat", "text": "a\\nb\\nc\\nd",
+        { "expected": "social", "text": "a\\nb\\nc\\nd",
           "blocks": [
             { "id": 0, "text": "a", "box": { "x": 0.05, "y": 0.1, "width": 0.3, "height": 0.02 } },
             { "id": 1, "text": "b", "box": { "x": 0.6, "y": 0.2, "width": 0.3, "height": 0.02 } },
@@ -116,11 +116,11 @@ final class ClassificationEvaluationTests: XCTestCase {
         """
         let sample = try JSONDecoder().decode(LabeledSample.self, from: Data(json.utf8))
         XCTAssertTrue(sample.classifierInput.signals.hasAlternatingBubbles)
-        XCTAssertFalse(LabeledSample(expected: .chat, text: "a\nb\nc\nd").classifierInput.signals.hasAlternatingBubbles)
+        XCTAssertFalse(LabeledSample(expected: .social, text: "a\nb\nc\nd").classifierInput.signals.hasAlternatingBubbles)
     }
 
     func testSyntheticChatLayoutAlternates() {
-        let sample = LabeledSample(expected: .chat, text: "a\nb\nc\nd", layout: "chat", barcodes: 2)
+        let sample = LabeledSample(expected: .social, text: "a\nb\nc\nd", layout: "chat", barcodes: 2)
         XCTAssertTrue(sample.classifierInput.signals.hasAlternatingBubbles)
         XCTAssertEqual(sample.classifierInput.signals.barcodes, 2)
     }

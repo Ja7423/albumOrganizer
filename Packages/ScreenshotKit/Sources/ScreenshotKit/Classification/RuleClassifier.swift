@@ -57,11 +57,12 @@ public struct RuleClassifier: ScreenshotClassifier {
         return ClassifierVerdict(target: .builtIn(best.key), confidence: best.value, source: .rule)
     }
 
-    /// Score per category, excluding the input's excluded targets. Exposed for tests and tuning.
+    /// Score per category, excluding the input's excluded targets; a category with several rules takes
+    /// its best one. Exposed for tests and tuning.
     public func scores(for input: ClassifierInput) -> [BuiltInCategory: Double] {
         var result: [BuiltInCategory: Double] = [:]
         for rule in rules where !input.excluded.contains(.builtIn(rule.category)) {
-            result[rule.category] = Self.score(rule, text: input.text, signals: input.signals)
+            result[rule.category] = max(result[rule.category] ?? 0, Self.score(rule, text: input.text, signals: input.signals))
         }
         return result
     }
@@ -93,15 +94,18 @@ public extension RuleClassifier {
              keywords: ["登機證", "登機門", "航班", "車次", "車票", "訂位代號", "座位", "入場券", "艙等", "月台", "影廳",
                         "boarding pass", "flight", "gate", "seat"],
              signalScore: { $0.barcodes > 0 ? 0.3 : 0 }),
-        Rule(.chat,
-             keywords: ["已讀", "傳送訊息", "輸入訊息", "iMessage", "訊息", "已傳送", "Aa"],
-             signalScore: { $0.hasAlternatingBubbles ? 0.6 : 0 }),
         Rule(.social,
              keywords: ["讚", "留言", "分享", "追蹤", "轉發", "則留言", "個讚", "查看翻譯", "likes", "comments", "follow", "repost"],
              hitsForFullScore: 3),
+        // Messaging screens are social too; a rule of their own so the two keyword sets don't add up.
+        Rule(.social,
+             keywords: ["已讀", "傳送訊息", "輸入訊息", "iMessage", "訊息", "已傳送", "Aa"],
+             signalScore: { $0.hasAlternatingBubbles ? 0.6 : 0 }),
         Rule(.article,
              keywords: ["分鐘閱讀", "閱讀時間", "作者", "記者", "報導", "延伸閱讀", "訂閱", "書摘", "kindle", "劃線", "發布於", "更新於"],
-             patterns: [#"第\s*\d+\s*[章頁]"#]),
+             patterns: [#"第\s*\d+\s*[章頁]"#,
+                        // Facebook's in-app browser: "Facebook" next to the opened site's domain in the top bar.
+                        #"\A(?:[^\n]{0,3}\n)?(?:Facebook\n•?\s*[a-z0-9-]+(?:\.[a-z0-9-]+)+|•?\s*[a-z0-9-]+(?:\.[a-z0-9-]+)+\nFacebook)\s*(?:\n|\z)"#]),
         Rule(.code,
              keywords: ["func ", "let ", "var ", "import ", "class ", "struct ", "enum ", "interface ", "def ", "return", "=>",
                         "console.log", "print(",
@@ -119,8 +123,11 @@ public extension RuleClassifier {
                         "加入購物車", "購物車", "立即購買", "結帳", "checkout", "免運", "運費", "規格", "售價", "特價", "已售出"],
              patterns: [#"(?s)(優惠|折扣|折價|code).{0,20}\b(?=[A-Z0-9]*[A-Z])(?=[A-Z0-9]*\d)[A-Z0-9]{4,12}\b"#]),
         Rule(.credential,
-             keywords: ["密碼", "password", "passcode", "驗證碼", "wi-fi", "wifi", "帳號", "網路名稱", "SSID"],
-             patterns: [#"驗證碼[:：\s]*\d{4,8}"#]),
+             keywords: ["密碼", "password", "passcode", "驗證碼", "wi-fi", "wifi", "帳號", "網路名稱", "SSID",
+                        "帳戶餘額", "可用餘額", "帐户余额", "可用余额"],
+             patterns: [#"驗證碼[:：\s]*\d{4,8}"#,
+                        // Recovery and one-time codes: "請不要與任何人分享此代碼", "切勿与任何人分享此代码".
+                        #"[不勿]要?[與与]任何人分享"#]),
         Rule(.schedule,
              keywords: ["會議", "meeting", "會議室", "議程", "zoom.us", "meet.google", "teams.microsoft", "邀請", "行事曆",
                         "訂位確認", "預約", "報到", "活動時間"],
@@ -130,7 +137,7 @@ public extension RuleClassifier {
         // Not 「最高／最低」: weather screens use them too.
         Rule(.stock,
              keywords: ["股價", "成交量", "成交價", "本益比", "殖利率", "漲跌", "漲幅", "跌幅", "開盤", "收盤", "昨收", "市值",
-                        "自選股", "加權指數", "委買", "委賣", "庫存", "未實現損益", "現股", "融資", "融券", "K線"],
+                        "自選股", "加權指數", "委買", "委賣", "庫存", "未實現", "已實現", "現股", "融資", "融券", "K線"],
              patterns: [#"[+-]\d+(\.\d+)?\s*[(（]\s*[+-]?\d+(\.\d+)?\s*%\s*[)）]"#]),
         Rule(.info,
              keywords: ["設定", "關於本機", "軟體更新", "電池健康度", "最大容量", "充電最佳化", "儲存空間", "描述檔", "安全性", "通知", "查詢時間",

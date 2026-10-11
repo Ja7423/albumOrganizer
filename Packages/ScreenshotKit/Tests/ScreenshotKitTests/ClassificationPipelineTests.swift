@@ -20,7 +20,7 @@ final class ClassificationPipelineTests: XCTestCase {
 
     func testFallsThroughUnconfidentLayers() async {
         let pipeline = ClassificationPipeline(layers: [
-            .init(FixedClassifier(verdict: verdict(.chat, 0.5, .rule)), threshold: 0.7),
+            .init(FixedClassifier(verdict: verdict(.note, 0.5, .rule)), threshold: 0.7),
             .init(FixedClassifier(verdict: nil), threshold: 0.7),
             .init(FixedClassifier(verdict: verdict(.article, 0.8, .llm)), threshold: 0.6),
         ])
@@ -60,7 +60,7 @@ final class ClassificationPipelineTests: XCTestCase {
 
     func testClassifyOrThrowAppliesTheSameThresholdAndExclusions() async throws {
         let pipeline = ClassificationPipeline(layers: [
-            .init(FixedClassifier(verdict: verdict(.chat, 0.5, .llm)), threshold: 0.6),
+            .init(FixedClassifier(verdict: verdict(.note, 0.5, .llm)), threshold: 0.6),
             .init(FixedClassifier(verdict: verdict(.social, 0.9, .llm)), threshold: 0.6),
             .init(FixedClassifier(verdict: verdict(.note, 0.9, .llm)), threshold: 0.6),
         ])

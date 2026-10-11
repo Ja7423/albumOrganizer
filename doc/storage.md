@@ -108,7 +108,7 @@ LibraryStore（App，@MainActor）
 |------|------|
 | `RecognitionState` | `pending`、`done`、`failed` |
 | `FeatureTag` | `link`（含連結）、`qrCode`（QR code）、`phone`（含電話）、`date`（含日期）、`address`（含地址） |
-| `BuiltInCategory` | `receipt` 收據、`ticket` 票券、`chat` 對話、`social` 社群貼文、`article` 文章、`code` 程式碼、`place` 地點、`recipe` 食譜、`coupon` 優惠、`credential` 帳號資訊、`schedule` 行程、`note` 筆記 |
+| `BuiltInCategory` | `receipt` 收據、`ticket` 票券、`social` 社群、`article` 文章、`code` 程式碼、`place` 地點、`recipe` 食譜、`shopping` 購物、`credential` 帳號資訊、`schedule` 行程、`note` 筆記、`stock` 股票、`info` 資訊 |
 | `ClassifierSource` | `rule`、`knn`、`llm` |
 
 **資料庫裡存的是左邊的 key，畫面上的名稱只是顯示用**，改顯示名稱不需要動 schema。新增、刪除、改名 key 的影響見 §4.2。

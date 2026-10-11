@@ -20,6 +20,13 @@ final class LLMCategoryPromptTests: XCTestCase {
         XCTAssertTrue(instructions.contains("- receipt（收據）：\(BuiltInCategory.receipt.hint)"))
     }
 
+    func testMessagingIsPartOfSocial() {
+        let instructions = LLMCategoryPrompt.instructions(excluding: [])
+        XCTAssertFalse(LLMCategoryPrompt.choices(excluding: []).contains("chat"))
+        XCTAssertTrue(instructions.contains("- social（社群）：\(BuiltInCategory.social.hint)\n"))
+        XCTAssertTrue(instructions.contains("Messaging apps"))
+    }
+
     func testNoneIsOfferedWithExamples() {
         let instructions = LLMCategoryPrompt.instructions(excluding: [])
         XCTAssertTrue(instructions.contains("- none：天氣"))

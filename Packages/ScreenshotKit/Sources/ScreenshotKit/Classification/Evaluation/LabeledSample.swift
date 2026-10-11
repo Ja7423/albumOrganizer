@@ -32,9 +32,14 @@ public struct LabeledSample: Codable, Hashable, Sendable {
 
     /// What a classifier layer sees for this sample, with no category excluded.
     public var classifierInput: ClassifierInput {
+        classifierInput(excluding: [])
+    }
+
+    /// What a classifier layer sees for this sample in a library where `excluded` were deleted.
+    public func classifierInput(excluding excluded: Set<ClassificationTarget>) -> ClassifierInput {
         let payloads = Array(repeating: "payload", count: barcodes ?? 0)
         let signals = SignalExtractor.extract(blocks: blocks ?? syntheticBlocks, barcodes: payloads)
-        return ClassifierInput(text: text, signals: signals)
+        return ClassifierInput(text: text, signals: signals, excluded: excluded)
     }
 
     /// One block per line, top to bottom; chat lines alternate between the left and right edges.
