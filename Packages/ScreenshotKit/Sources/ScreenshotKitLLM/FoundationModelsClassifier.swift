@@ -24,7 +24,7 @@ public struct FoundationModelsClassifier: ScreenshotClassifier {
             let response = try await session.respond(
                 to: LLMCategoryPrompt.prompt(for: input.text),
                 schema: Self.answerSchema(excluding: input.excluded),
-                options: GenerationOptions(sampling: .greedy)
+                options: Self.greedy
             )
             return try LLMCategoryPrompt.verdict(
                 category: response.content.value(String.self, forProperty: "category"),
@@ -34,6 +34,13 @@ public struct FoundationModelsClassifier: ScreenshotClassifier {
             return nil
         }
     }
+
+    // The iOS 27 SDK (Swift 6.4) renames `sampling:` to `samplingMode:`, back-deployed to iOS 26; older SDKs only have `sampling:`.
+    #if compiler(>=6.4)
+    private static let greedy = GenerationOptions(samplingMode: .greedy)
+    #else
+    private static let greedy = GenerationOptions(sampling: .greedy)
+    #endif
 
     /// `{ category: one of the offered keys or "none", certainty: high | medium | low }`
     private static func answerSchema(excluding excluded: Set<ClassificationTarget>) throws -> GenerationSchema {
