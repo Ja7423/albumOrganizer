@@ -77,9 +77,9 @@ LibraryStore（App，@MainActor）
 | `pixelWidth`、`pixelHeight` | INTEGER NOT NULL | 同名 | 原圖尺寸 |
 | `folderID` | TEXT，FK → `folder(id)` ON DELETE SET NULL | `folderID` | NULL 表示未分類，或還沒分類過的處理中截圖 |
 | `placement` | TEXT NOT NULL | `placement` | `pending` / `auto` / `user` |
-| `autoSource` | TEXT | `AutoPlacement.source` | 只有 `auto` 時有值：`rule` / `knn` / `llm`；NULL 表示判斷不出來 |
+| `autoSource` | TEXT | `AutoPlacement.source` | 只有 `auto` 時有值：`rule` / `knn` / `llm` / `learned`；NULL 表示判斷不出來 |
 | `classifierVersion` | INTEGER | `AutoPlacement.classifierVersion` | 只有 `auto` 時有值 |
-| `isRefined` | BOOLEAN NOT NULL DEFAULT 0 | `AutoPlacement.isRefined` | Apple Intelligence 補判是否已經看過這張（見 [classification.md §4](classification.md#4-第二層apple-intelligence-補判)）。`auto` 以外的截圖一律是 0 |
+| `isRefined` | BOOLEAN NOT NULL DEFAULT 0 | `AutoPlacement.isRefined` | Apple Intelligence 補判是否已經看過這張（見 [classification.md §4](classification.md#5-第三層apple-intelligence-補判)）。`auto` 以外的截圖一律是 0 |
 | `tags` | TEXT NOT NULL | `tags` | JSON 陣列，使用者加的標籤 |
 | `featureTags` | TEXT NOT NULL | `featureTags` | JSON 陣列，自動標籤的 key，已扣掉使用者移除過的 |
 | `dismissedFeatureTags` | TEXT NOT NULL | `dismissedFeatureTags` | JSON 陣列，使用者移除過的自動標籤 |
@@ -108,8 +108,8 @@ LibraryStore（App，@MainActor）
 |------|------|
 | `RecognitionState` | `pending`、`done`、`failed` |
 | `FeatureTag` | `link`（含連結）、`qrCode`（QR code）、`phone`（含電話）、`date`（含日期）、`address`（含地址） |
-| `BuiltInCategory` | `receipt` 收據、`ticket` 票券、`chat` 對話、`social` 社群貼文、`article` 文章、`code` 程式碼、`place` 地點、`recipe` 食譜、`coupon` 優惠、`credential` 帳號資訊、`schedule` 行程、`note` 筆記 |
-| `ClassifierSource` | `rule`、`knn`、`llm` |
+| `BuiltInCategory` | `receipt` 收據、`ticket` 票券、`social` 社群、`article` 文章、`code` 程式碼、`place` 地點、`recipe` 食譜、`shopping` 購物、`credential` 帳號資訊、`schedule` 行程、`note` 筆記、`stock` 股票、`info` 資訊 |
+| `ClassifierSource` | `rule`、`knn`、`llm`、`learned` |
 
 **資料庫裡存的是左邊的 key，畫面上的名稱只是顯示用**，改顯示名稱不需要動 schema。新增、刪除、改名 key 的影響見 §4.2。
 

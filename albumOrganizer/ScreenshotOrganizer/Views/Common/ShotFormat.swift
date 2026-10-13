@@ -44,6 +44,7 @@ enum ShotFormat {
         case .rule: return "規則"
         case .knn: return "相似截圖"
         case .llm: return "Apple Intelligence"
+        case .learned: return "從你的分類學習"
         }
     }
 }

@@ -127,6 +127,24 @@ final class SQLiteLibraryDatabaseTests: XCTestCase {
         XCTAssertEqual(loaded.deletedBuiltIns, [.recipe])
     }
 
+    /// A database saved while 對話 was still a built-in category.
+    func testRetiredChatFolderBecomesOrdinaryFolder() throws {
+        let (db, library) = try savedFixture()
+        let chat = try XCTUnwrap(library.folders.first { $0.name == "對話" })
+        try db.queue.write { db in
+            try db.execute(sql: """
+            UPDATE folder SET builtIn = 'chat' WHERE id = '\(chat.id.uuidString)';
+            UPDATE shot SET folderID = '\(chat.id.uuidString)' WHERE id = 'user-shot';
+            INSERT INTO deletedBuiltIn (category) VALUES ('chat');
+            """)
+        }
+
+        let loaded = try XCTUnwrap(db.loadLibrary())
+        XCTAssertEqual(loaded.folders.filter { $0.name == "對話" }, [Folder(id: chat.id, name: "對話")])
+        XCTAssertEqual(loaded.shot("user-shot")?.folderID, chat.id)
+        XCTAssertFalse(loaded.deletedBuiltIns.contains { $0.rawValue == "chat" })
+    }
+
     func testRefinementMarkRoundTrips() throws {
         let (db, library) = try savedFixture()
         var refined = library

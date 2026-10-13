@@ -65,3 +65,7 @@ playground.xcworkspace
 # Package.resolved
 # SwiftPM
 .build/
+
+### Classification evaluation
+# Labeled sets exported from real libraries contain OCR text (personal information)
+/eval/

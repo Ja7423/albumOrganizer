@@ -125,7 +125,7 @@ private struct MoveSheetContent: View {
     private func move(to folderID: UUID?) {
         let ids = ui.sheetTargets
         let batch = ui.sheetContext == .batch
-        store.mutate { $0.move(ids, to: folderID) }
+        store.move(ids, to: folderID)
         ui.dismissSheet()
         if batch { ui.endSelecting() }
         ui.showToast((batch ? "\(ids.count) 張已" : "已") + "移到「\(store.library.folderName(folderID))」")
@@ -287,7 +287,7 @@ struct NameDialog: View {
             if moveAfter {
                 let ids = ui.sheetTargets
                 let batch = ui.sheetContext == .batch
-                store.mutate { $0.move(ids, to: folder.id) }
+                store.move(ids, to: folder.id)
                 ui.dismissSheet()
                 if batch { ui.endSelecting() }
                 ui.showToast((batch ? "\(ids.count) 張已" : "已") + "移到「\(folder.name)」")

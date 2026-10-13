@@ -19,13 +19,18 @@ final class LegacyJSONImportTests: XCTestCase {
         let dir = try temporaryDirectory()
         try FileManager.default.copyItem(at: fixtureURL(), to: dir.appendingPathComponent("library.json"))
 
-        XCTAssertEqual(try loaded(open(dir)), try fixtureLibrary())
+        // Built-in folders the file predates get a new id on every decode, so compare contents, not ids.
+        let imported = try XCTUnwrap(loaded(open(dir)))
+        let fixture = try fixtureLibrary()
+        XCTAssertEqual(imported.shots, fixture.shots)
+        XCTAssertEqual(imported.folders.map(\.name), fixture.folders.map(\.name))
+        XCTAssertEqual(imported.folders.map(\.builtIn), fixture.folders.map(\.builtIn))
         XCTAssertTrue(try fileNames(in: dir).contains("library.imported.json"))
         XCTAssertFalse(try fileNames(in: dir).contains("library.json"))
 
         // A library.json that shows up later is not imported again.
         try LibraryCodec.encode(Library()).write(to: dir.appendingPathComponent("library.json"))
-        XCTAssertEqual(try loaded(open(dir)), try fixtureLibrary())
+        XCTAssertEqual(try loaded(open(dir)), imported)
         XCTAssertTrue(try fileNames(in: dir).contains("library.json"))
     }
 

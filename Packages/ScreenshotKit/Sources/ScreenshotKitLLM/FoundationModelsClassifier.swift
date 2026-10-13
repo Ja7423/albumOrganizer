@@ -3,18 +3,19 @@ import ScreenshotKit
 
 /// Asks the on-device Apple Intelligence model to pick a built-in category. Nothing leaves the device.
 /// Returns `nil` when this screenshot can't be judged; throws when the model can't answer right now.
-nonisolated struct FoundationModelsClassifier: ScreenshotClassifier {
-    enum Unavailable: Error {
+@available(iOS 26.0, macOS 26.0, *)
+public struct FoundationModelsClassifier: ScreenshotClassifier {
+    public enum Unavailable: Error {
         case model(SystemLanguageModel.Availability.UnavailableReason)
     }
 
     private let model: SystemLanguageModel
 
-    init(model: SystemLanguageModel = .default) {
+    public init(model: SystemLanguageModel = .default) {
         self.model = model
     }
 
-    func classify(_ input: ClassifierInput) async throws -> ClassifierVerdict? {
+    public func classify(_ input: ClassifierInput) async throws -> ClassifierVerdict? {
         if case let .unavailable(reason) = model.availability {
             throw Unavailable.model(reason)
         }
@@ -63,9 +64,10 @@ nonisolated struct FoundationModelsClassifier: ScreenshotClassifier {
     }
 }
 
-extension ClassificationPipeline {
+@available(iOS 26.0, macOS 26.0, *)
+public extension ClassificationPipeline {
     /// The refinement pass for screenshots the rules left in 未分類.
-    nonisolated static let appleIntelligence = ClassificationPipeline(layers: [
+    static let appleIntelligence = ClassificationPipeline(layers: [
         Layer(FoundationModelsClassifier(), threshold: 0.6),
     ])
 }

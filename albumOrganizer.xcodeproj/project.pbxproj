@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		A99420503075340000D5CBCF /* ScreenshotKit in Frameworks */ = {isa = PBXBuildFile; productRef = A99420523075340000D5CBCF /* ScreenshotKit */; };
 		A99420603075340000D5CBCF /* LibraryPersistence in Frameworks */ = {isa = PBXBuildFile; productRef = A99420623075340000D5CBCF /* LibraryPersistence */; };
+		A99420703075340000D5CBCF /* ScreenshotKitLLM in Frameworks */ = {isa = PBXBuildFile; productRef = A99420723075340000D5CBCF /* ScreenshotKitLLM */; };
+		A99420803075340000D5CBCF /* ScreenshotKitML in Frameworks */ = {isa = PBXBuildFile; productRef = A99420823075340000D5CBCF /* ScreenshotKitML */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -43,6 +45,8 @@
 			files = (
 				A99420503075340000D5CBCF /* ScreenshotKit in Frameworks */,
 				A99420603075340000D5CBCF /* LibraryPersistence in Frameworks */,
+				A99420703075340000D5CBCF /* ScreenshotKitLLM in Frameworks */,
+				A99420803075340000D5CBCF /* ScreenshotKitML in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -87,6 +91,8 @@
 			packageProductDependencies = (
 				A99420523075340000D5CBCF /* ScreenshotKit */,
 				A99420623075340000D5CBCF /* LibraryPersistence */,
+				A99420723075340000D5CBCF /* ScreenshotKitLLM */,
+				A99420823075340000D5CBCF /* ScreenshotKitML */,
 			);
 			productName = albumOrganizer;
 			productReference = A9942036307533CF00D5CBCF /* albumOrganizer.app */;
@@ -382,6 +388,14 @@
 		A99420623075340000D5CBCF /* LibraryPersistence */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = LibraryPersistence;
+		};
+		A99420723075340000D5CBCF /* ScreenshotKitLLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ScreenshotKitLLM;
+		};
+		A99420823075340000D5CBCF /* ScreenshotKitML */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ScreenshotKitML;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
