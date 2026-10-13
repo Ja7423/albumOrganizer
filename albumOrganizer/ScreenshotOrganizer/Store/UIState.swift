@@ -18,7 +18,7 @@ final class UIState {
         case feature(FeatureTag)
     }
 
-    enum Sheet: Equatable { case move, tags }
+    enum Sheet: Equatable { case move, tags, settings }
     /// Whether a sheet acts on the batch selection or on the open detail.
     enum SheetContext: Equatable { case batch, detail }
 

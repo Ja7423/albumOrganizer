@@ -2,7 +2,7 @@ import ScreenshotKit
 import SwiftUI
 import UIKit
 
-/// 首次匯入: welcome → photo permission → import with text recognition and classification.
+/// 首次匯入: welcome → photo permission → (restore from iCloud) → import with text recognition and classification.
 struct OnboardingView: View {
     @Environment(LibraryStore.self) private var store
 
@@ -10,6 +10,7 @@ struct OnboardingView: View {
         Group {
             switch store.phase {
             case .permission: PermissionStep()
+            case .restoreOffer: RestoreOfferStep()
             case .importing: ImportStep()
             default: WelcomeStep()
             }
@@ -145,6 +146,42 @@ private struct PermissionStep: View {
         Task {
             await store.requestAccess()
             asking = false
+        }
+    }
+}
+
+/// Shown only when iCloud holds a backup; answering it starts the import.
+private struct RestoreOfferStep: View {
+    @Environment(LibraryStore.self) private var store
+
+    var body: some View {
+        let isRestoring = store.backup.activity == .restoring
+        VStack(alignment: .leading, spacing: 0) {
+            StepKicker(text: "步驟 1 / 2")
+            Text("找到 iCloud 備份")
+                .font(Typeface.head(32))
+                .padding(.top, 12)
+            if let offer = store.restoreOffer {
+                Text("\(offer.createdAt.formatted(date: .long, time: .shortened)) 備份，共 \(offer.shotCount) 張已整理的截圖。")
+                    .font(Typeface.body(15))
+                    .padding(.top, 12)
+            }
+            Text("還原後，資料夾、標籤與分類會回到備份時的樣子；之後新增的截圖會照常自動分類。")
+                .font(Typeface.body(15))
+                .foregroundStyle(Palette.neutral700)
+                .lineSpacing(3)
+                .padding(.top, 8)
+
+            Spacer()
+
+            Button("從頭開始，不還原") { store.declineRestoreOffer() }
+                .buttonStyle(.ghost)
+                .disabled(isRestoring)
+                .padding(.bottom, 6)
+            ContinueButton(title: isRestoring ? "還原中…" : "還原備份") {
+                Task { await store.acceptRestoreOffer() }
+            }
+            .disabled(isRestoring)
         }
     }
 }

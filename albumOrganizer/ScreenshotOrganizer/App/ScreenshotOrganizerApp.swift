@@ -16,7 +16,9 @@ struct ScreenshotOrganizerApp: App {
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
-            case .background: store.saveNow()
+            case .background:
+                store.saveNow()
+                store.backUp()
             case .active: if store.phase == .app { store.syncWithPhotos() }
             default: break
             }

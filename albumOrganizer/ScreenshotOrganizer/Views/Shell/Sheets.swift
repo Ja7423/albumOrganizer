@@ -53,7 +53,7 @@ struct SheetHost: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(sheet == .move ? "移到資料夾" : "標籤").font(Typeface.head(22))
+                    Text(title(sheet)).font(Typeface.head(22))
                     Text(subtitle(sheet)).font(Typeface.body(12)).foregroundStyle(Palette.neutral700)
                 }
                 Spacer()
@@ -66,13 +66,26 @@ struct SheetHost: View {
             switch sheet {
             case .move: MoveSheetContent()
             case .tags: TagSheetContent()
+            case .settings: BackupSection()
             }
         }
     }
 
+    private func title(_ sheet: UIState.Sheet) -> String {
+        switch sheet {
+        case .move: return "移到資料夾"
+        case .tags: return "標籤"
+        case .settings: return "設定"
+        }
+    }
+
     private func subtitle(_ sheet: UIState.Sheet) -> String {
-        if ui.sheetContext == .batch { return "套用到 \(ui.selection.count) 張截圖" }
-        return sheet == .move ? "一張截圖只會在一個資料夾" : "可以加上多個標籤"
+        switch sheet {
+        case .settings: return "備份只存在你自己的 iCloud"
+        case _ where ui.sheetContext == .batch: return "套用到 \(ui.selection.count) 張截圖"
+        case .move: return "一張截圖只會在一個資料夾"
+        case .tags: return "可以加上多個標籤"
+        }
     }
 }
 
