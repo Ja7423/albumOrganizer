@@ -119,13 +119,15 @@ platform :ios do
     end
 
     UI.success("已輸出 #{File.join(OUTPUT_DIR, IPA_NAME)}（build #{build_number}）")
+    build_number
   end
 
   desc "編譯並用 asc 上傳到 App Store Connect / TestFlight"
   desc "選項：build_number:<n>、wait:true（等 Apple 處理完成）"
   lane :beta do |options|
-    build_appstore(build_number: options[:build_number])
+    build_number = build_appstore(build_number: options[:build_number])
     upload_with_asc(ipa: File.join(OUTPUT_DIR, IPA_NAME), wait: options[:wait])
+    write_github_outputs(version: marketing_version, build_number: build_number)
   end
 
   desc "只上傳已編譯好的 ipa（預設 build/albumOrganizer.ipa）"
@@ -156,6 +158,20 @@ def parse_version_option(value)
   UI.user_error!("build number 格式錯誤：#{build_number}（例如 12）") if build_number && build_number !~ format
 
   [marketing_version, build_number]
+end
+
+# 讀 project.pbxproj 裡的 MARKETING_VERSION（所有 target 一致，取第一個即可）。
+def marketing_version
+  File.read(PBXPROJ)[/MARKETING_VERSION = ([^;]+);/, 1] ||
+    UI.user_error!("project.pbxproj 裡找不到 MARKETING_VERSION")
+end
+
+# 在 GitHub Actions 上把值寫進 $GITHUB_OUTPUT 給後續 step 使用；本機沒有這個變數，什麼都不做。
+def write_github_outputs(values)
+  path = ENV["GITHUB_OUTPUT"]
+  return if path.to_s.empty?
+
+  File.open(path, "a") { |file| values.each { |key, value| file.puts("#{key}=#{value}") } }
 end
 
 # 向 App Store Connect 查下一個可用的 build number（包含處理中的上傳）。
