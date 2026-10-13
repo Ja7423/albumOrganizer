@@ -88,19 +88,23 @@
 
 | 目錄 | 檔案 | 職責 |
 |------|------|------|
-| `App/` | `ScreenshotOrganizerApp.swift` | 建立 `LibraryStore`、`UIState` 放進 environment；`RootView` 依 `store.phase` 切換 Onboarding / AppShell；監聽 scenePhase（進背景立即存檔、回前景重新同步） |
-| `Store/` | `LibraryStore.swift` | 持有 `Library`；首次匯入流程；Photos 同步；餵處理佇列；`mutate` 後 400ms debounce 存檔（沒有變動就不寫） |
+| `App/` | `ScreenshotOrganizerApp.swift` | 建立 `LibraryStore`、`UIState` 放進 environment；`RootView` 依 `store.phase` 切換 Onboarding / AppShell；監聽 scenePhase（進背景立即存檔並備份到 iCloud、回前景重新同步） |
+| `Store/` | `LibraryStore.swift` | 持有 `Library`；首次匯入流程（含 iCloud 還原詢問）；Photos 同步；餵處理佇列；`mutate` 後 400ms debounce 存檔（沒有變動就不寫）；套用備份還原 |
 | | `UIState.swift` | 目前 tab、截圖 tab 的 chip、各 tab 的 NavigationStack path、批次選取、詳細頁、sheet、dialog、toast |
 | | `DetailSession.swift` | 詳細頁開啟時拍下的 id 清單與目前頁 |
 | `Services/` | `PhotoLibraryService.swift` | 權限、撈出所有螢幕截圖、變更通知、縮圖串流（`PHCachingImageManager` + 64MB `NSCache`）、原圖資料 |
 | | `ScreenshotProcessor.swift` | 一次處理一張：先 OCR、再用規則分類；主佇列清空後，對未分類的截圖用 Apple Intelligence 補判；支援把某張插到最前面（`prioritize`） |
 | | `FoundationModelsClassifier.swift` | 呼叫裝置上的 Foundation Models 補判；分辨「這張判斷不了」和「現在判斷不了」 |
+| | `BackupService.swift` | iCloud 備份與還原的流程：上傳閘門、打包快照、對應截圖、暫存還沒找到的截圖（見 [storage.md §7](storage.md#7-icloud-備份與還原)） |
+| | `BackupRemote.swift` | `CloudKitBackupRemote`：私有資料庫裡兩個輪流覆寫的快照 record |
+| | `PendingRestoreStore.swift` | 讀寫 `pending-restore.json` |
 | | `TextRecognizer.swift` | `VisionScreenRecognizer`：繁中 + 英文 OCR、條碼偵測，在 detached task 執行 |
 | `Views/Shell/` | `AppShell.swift` | Tab 切換、TabBar / BatchBar、疊上詳細頁、SheetHost、NameDialog、Toast |
-| | `Sheets.swift` | 「移到資料夾」「標籤」sheet 與命名對話框 |
+| | `Sheets.swift` | 「移到資料夾」「標籤」「設定」sheet 與命名對話框 |
+| `Views/Settings/` | `BackupSection.swift` | 設定 sheet 的 iCloud 備份區塊（從資料夾 tab 右上角齒輪開啟） |
 | `Views/Library/` | `ShotGridScreen.swift` 等 | 四個 tab 的畫面（見各 spec） |
 | `Views/Detail/` | `ShotDetailScreen.swift`、`ShotPage.swift` | 詳細頁與單頁（含文字區塊選取） |
-| `Views/Onboarding/` | `OnboardingView.swift` | 歡迎 → 權限 → 匯入 |
+| `Views/Onboarding/` | `OnboardingView.swift` | 歡迎 → 權限 →（還原 iCloud 備份）→ 匯入 |
 | `Views/Common/` | `AssetImage`、`LimitedAccessBanner`、`ShotFormat` | 共用元件與日期／分類方式格式化 |
 | `Theme/` | `Classical.swift`、`Components.swift`、`ButtonStyles.swift` | 設計 token（顏色、間距、圓角、陰影、字型）與元件 |
 
@@ -165,7 +169,9 @@ App 不複製、不搬移、不修改任何照片檔案，只讀取 Photos，並
 ```
 歡迎頁 ──「開始整理」──▶ 權限頁（一進來就跳系統權限詢問）
                            ├─ 拒絕 → 顯示說明 +「前往設定」
-                           └─ 允許（完整或部分）──▶ 匯入頁
+                           └─ 允許（完整或部分）──▶ iCloud 有備份？
+                                                      ├─ 有 ──▶ 還原頁：「還原備份」或「從頭開始，不還原」──▶ 匯入頁
+                                                      └─ 沒有、iCloud 不可用或 5 秒內沒有回應 ──▶ 匯入頁
 匯入頁：掃描「螢幕截圖」相簿 → 辨識圖中文字（n / total）→ 自動分類 → 完成
   ├─ 超過 20 張時可按「先進入相簿，在背景繼續辨識」提早進入
   └─ 完成後顯示「已分類 X 張，未分類 Y 張」→「進入相簿」
@@ -192,6 +198,8 @@ App 不複製、不搬移、不修改任何照片檔案，只讀取 Photos，並
 - 在任一截圖 grid 下拉可手動更新：在背景重新讀取相簿後同步（見 [截圖 tab §2.5](spec/tab-screenshots.md#25-下拉更新)）。
 - 部分照片權限時，截圖 tab 與資料夾 tab 頂端顯示提示，可「選取更多截圖」或「前往設定」。
 - 開啟某張處理中截圖的詳細頁時，它會被插到佇列最前面。
+- App 進背景時備份到 iCloud（內容沒變就不上傳）；資料夾 tab 右上角齒輪 → 設定，可以立即備份或從備份還原。
+- 還原時還沒出現在這台裝置的截圖（例如 iCloud 照片還在下載），之後每次相簿變更都會再比對一次，最多 30 天。
 
 ---
 
@@ -205,12 +213,13 @@ albumOrganizer/
 │  └─ ScreenshotOrganizer/
 │     ├─ App/                       進入點與 RootView
 │     ├─ Store/                     LibraryStore、UIState、DetailSession
-│     ├─ Services/                  Photos、處理佇列、Vision、學習層的訓練排程
+│     ├─ Services/                  Photos、處理佇列、Vision、學習層的訓練排程、iCloud 備份
 │     ├─ Views/
 │     │  ├─ Shell/                  AppShell、TabBar、BatchBar、Toast、Sheets、NameDialog
 │     │  ├─ Library/                ShotGridScreen、FoldersScreen、TagsScreen、SearchScreen
 │     │  ├─ Detail/                 ShotDetailScreen、ShotPage
 │     │  ├─ Onboarding/
+│     │  ├─ Settings/               設定 sheet 的 iCloud 備份區塊
 │     │  └─ Common/                 AssetImage、LimitedAccessBanner、ShotFormat
 │     ├─ Theme/                     Palette、Typeface、Space、Radius、元件、按鈕樣式
 │     └─ Resources/Fonts/           Lora、Cormorant Garamond、Noto Serif TC（OFL）

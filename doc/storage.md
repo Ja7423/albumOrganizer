@@ -331,3 +331,61 @@ xcrun simctl spawn booted log show --last 10m --predicate 'subsystem == "com.chi
 ```
 
 手動修改資料庫之前先關掉 App：App 只在啟動時讀一次，之後存檔會依記憶體裡的內容覆寫有變動的 row。
+
+---
+
+## 7. iCloud 備份與還原
+
+規劃與決策理由見 [plan/icloud-library-backup-2026-10-13.md](plan/icloud-library-backup-2026-10-13.md)。
+
+### 7.1 備份什麼
+
+`BackupSnapshot`（`ScreenshotKit/Backup/`）是 `Library` 的使用者資料，不含任何可以重算的東西：
+
+| 有 | 沒有 |
+|----|----|
+| 資料夾、標籤、刪掉的內建分類 | OCR 文字、條碼（還原後在背景重新辨識） |
+| 每張截圖的資料夾、placement（`user` / `auto`）、標籤、feature tags、被移除的 feature tags | 學習層模型（還原後依 user placement 重新訓練） |
+| 隱藏的截圖 | 最近搜尋 |
+| 處理中（`pending`）以外的所有截圖 | 處理中的截圖（還沒有結果可以保留） |
+
+每張截圖用 `BackupShotKey` 記錄怎麼找回它：備份時的 `localIdentifier`、`PHCloudIdentifier`（沒開 iCloud 照片時為 `nil`）、拍攝時間、像素尺寸。
+
+格式由 `BackupCodec` 編碼，規則和 `LibraryCodec` 相同：有 `schemaVersion`，比目前新的快照拒讀。
+
+### 7.2 存在哪裡
+
+CloudKit 私有資料庫（container `iCloud.com.chiawei.albumOrganizer`）的預設 zone，record type `LibrarySnapshot`，固定兩個 record：`snapshot-0`、`snapshot-1`。每次上傳覆寫較舊的那個，所以雲端永遠保留最近兩份。欄位：`payload`（CKAsset，JSON）、`createdAt`、`schemaVersion`、`shotCount`。
+
+讀取時從新的開始解碼，讀不懂的（壞檔或 `newerSchema`）就改用另一份。
+
+### 7.3 什麼時候上傳
+
+- App 進背景時（`LibraryStore.backUp()`，有 background task），或在設定頁按「立即備份」。
+- 內容和這次執行中上次上傳的相同就略過。
+- **上傳閘門** `BackupService.canUpload`：只有確定不會蓋掉該保留的備份時才打開。
+  - 使用者回答了還原詢問（還原或從頭開始）。
+  - 確認 iCloud 裡沒有可讀的備份。
+  - 這台裝置在備份功能出現前就完成 onboarding（本機本來就有資料）。
+  - 檢查逾時、網路失敗、還原失敗時**不會**打開；設定頁會顯示還沒處理的備份，讓使用者選「還原」或「略過」。
+
+### 7.4 還原
+
+```
+fetchScreenshots() → BackupMatcher.match → Library.sync(with:) → Library.restoring → requeueOutdated
+                                   └─ 沒找到的 → pending-restore.json
+```
+
+- **對應截圖**（`BackupMatcher`）：先把 cloud identifier 換成這台的 `localIdentifier`。換不到時，用「拍攝時間（到秒）＋像素尺寸」比對，只有雙方都剛好一張時才算。
+- **合併**（`Library.restoring`）：
+  - placement：這台的 user placement 優先，其次備份的 user、備份的 auto，最後才是這台的 auto 或 pending。
+  - 資料夾：依序用 id、內建分類、名稱對應；都對不上就新增。這台刪掉的內建分類維持刪除；備份刪掉的內建分類，只有在這台的資料夾是空的時才刪。
+  - 標籤、被移除的 feature tags 取聯集。
+- **還沒找到的截圖**：存在 `Application Support/pending-restore.json`。每次 Photos 同步後重新比對，對上的就套用（這時不再新增資料夾，資料夾已經被刪掉的截圖維持原狀）。30 天後清除。下一次備份會把它們一起寫進快照，所以不會因為換手機而遺失。
+- 還原後，比目前分類器版本舊的 auto placement 會照 `requeueOutdated` 重新分類，和升級 App 時一樣。
+
+### 7.5 注意事項
+
+- **CloudKit schema 要部署到 Production**：record type 在 Development 環境第一次上傳時自動建立，上架前要在 CloudKit Console 部署到 Production。
+- **沒開 iCloud 照片**：跨裝置只能靠拍攝時間＋尺寸對應，同一秒同尺寸的截圖會重新分類。
+- **背景時間有限**：上傳失敗不影響本機資料，下次進背景時重試，設定頁顯示原因。

@@ -12,7 +12,7 @@ import UIKit
 @MainActor
 @Observable
 final class LibraryStore {
-    enum Phase: Equatable { case welcome, permission, importing, app }
+    enum Phase: Equatable { case welcome, permission, restoreOffer, importing, app }
 
     /// Import progress for the onboarding screen. Steps: 0 掃描, 1 辨識, 2 分類, 3 完成.
     struct ImportProgress: Equatable {
@@ -35,6 +35,10 @@ final class LibraryStore {
     private(set) var permissionDenied = false
     /// The user granted access to selected photos only.
     private(set) var isLimitedAccess = false
+    /// The backup offered during onboarding, while `phase` is `.restoreOffer`.
+    private(set) var restoreOffer: BackupService.Found?
+
+    @ObservationIgnored let backup: BackupService
 
     @ObservationIgnored private let photos: PhotoLibraryService
     @ObservationIgnored private let persistence: any LibraryPersisting
@@ -55,8 +59,11 @@ final class LibraryStore {
         recognizer: any ScreenRecognizing = VisionScreenRecognizer(),
         refinement: ClassificationPipeline? = .appleIntelligence,
         learnedModels: LearnedModelStore = LearnedModelUpdater.defaultStore,
-        persistence: any LibraryPersisting = LibraryStore.defaultPersistence
+        persistence: any LibraryPersisting = LibraryStore.defaultPersistence,
+        backup: BackupService? = nil
     ) {
+        let onboarded = UserDefaults.standard.bool(forKey: Self.onboardedKey)
+        self.backup = backup ?? BackupService(photos: photos, isOnboarded: onboarded)
         self.photos = photos
         learning = LearnedModelUpdater(store: learnedModels)
         self.persistence = persistence
@@ -66,7 +73,6 @@ final class LibraryStore {
         self.library = library
         lastSaved = stored.library
         isSavingDisabled = !stored.canSave
-        let onboarded = UserDefaults.standard.bool(forKey: Self.onboardedKey)
         phase = onboarded && photos.hasAccess ? .app : .welcome
         processor = ScreenshotProcessor(
             photos: photos,
@@ -129,10 +135,29 @@ final class LibraryStore {
         switch status {
         case .authorized, .limited:
             permissionDenied = false
-            startImport()
+            await offerRestoreOrImport()
         default:
             permissionDenied = true
         }
+    }
+
+    /// A backup in iCloud is offered before importing, so restored screenshots are not classified again.
+    private func offerRestoreOrImport() async {
+        guard let found = await backup.checkForBackup() else { return startImport() }
+        restoreOffer = found
+        phase = .restoreOffer
+    }
+
+    func acceptRestoreOffer() async {
+        await restoreFromBackup()
+        restoreOffer = nil
+        startImport()
+    }
+
+    func declineRestoreOffer() {
+        backup.skipRestore()
+        restoreOffer = nil
+        startImport()
     }
 
     private func startImport() {
@@ -174,6 +199,52 @@ final class LibraryStore {
     private func apply(_ assets: [AssetInfo]) {
         isLimitedAccess = photos.isLimited
         mutate { $0.sync(with: assets) }
+        processor.start()
+        if backup.hasPendingRestore {
+            Task { await restorePending(assets: assets) }
+        }
+    }
+
+    // MARK: - Backup
+
+    /// Uploads the library to iCloud, with background time so it can finish after the app is closed.
+    func backUp() {
+        let application = UIApplication.shared
+        let backgroundTask = application.beginBackgroundTask(withName: "Back up library")
+        Task {
+            await backup.backUp(library)
+            application.endBackgroundTask(backgroundTask)
+        }
+    }
+
+    /// Merges the iCloud backup into the library; a placement made on this device wins.
+    func restoreFromBackup() async {
+        let photos = photos
+        let assets = await Task.detached(priority: .userInitiated) { photos.fetchScreenshots() }.value
+        guard let restore = await backup.restore(assets: assets) else { return }
+        applyRestore(restore, assets: assets, mergingFolders: true)
+    }
+
+    /// Lets uploads replace a backup the user chose not to restore.
+    func skipBackupRestore() {
+        backup.skipRestore()
+    }
+
+    /// Screenshots from an earlier restore that just appeared in Photos get their backed-up places.
+    private func restorePending(assets: [AssetInfo]) async {
+        guard let restore = await backup.matchPending(assets: assets) else { return }
+        applyRestore(restore, assets: assets, mergingFolders: false)
+    }
+
+    /// Syncing first puts every matched screenshot in the library for the backup to land on. Placements from an
+    /// older classifier go back to the queue, as on launch.
+    private func applyRestore(_ restore: BackupRestore, assets: [AssetInfo], mergingFolders: Bool) {
+        mutate { library in
+            library.sync(with: assets)
+            library = library.restoring(restore, mergingFolders: mergingFolders)
+            library.requeueOutdated(version: ClassificationPipeline.version)
+        }
+        learning.update(for: library.trainingSet)
         processor.start()
     }
 

@@ -47,6 +47,16 @@ final nonisolated class PhotoLibraryService: NSObject, PHPhotoLibraryChangeObser
         options.predicate = NSPredicate(format: "(mediaSubtypes & %ld) != 0", Int(PHAssetMediaSubtype.photoScreenshot.rawValue))
         options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
         let result = PHAsset.fetchAssets(with: .image, options: options)
+        return Self.assetInfos(result)
+    }
+
+    /// Photos' details for the given screenshots; ones no longer in Photos are left out.
+    func assetInfos(for ids: [String]) -> [AssetInfo] {
+        guard !ids.isEmpty else { return [] }
+        return Self.assetInfos(PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil))
+    }
+
+    private static func assetInfos(_ result: PHFetchResult<PHAsset>) -> [AssetInfo] {
         var assets: [AssetInfo] = []
         assets.reserveCapacity(result.count)
         result.enumerateObjects { asset, _, _ in
@@ -58,6 +68,28 @@ final nonisolated class PhotoLibraryService: NSObject, PHPhotoLibraryChangeObser
             ))
         }
         return assets
+    }
+
+    // MARK: - Cloud identifiers
+
+    /// `localIdentifier` → `PHCloudIdentifier.stringValue`, for the screenshots iCloud Photos knows.
+    /// Slow for large libraries; call it off the main thread.
+    func cloudIdentifiers(for localIDs: [String]) -> [String: String] {
+        guard !localIDs.isEmpty else { return [:] }
+        let mappings = PHPhotoLibrary.shared().cloudIdentifierMappings(forLocalIdentifiers: localIDs)
+        return mappings.compactMapValues { try? $0.get().stringValue }
+    }
+
+    /// `PHCloudIdentifier.stringValue` → this device's `localIdentifier`, for the ones present here.
+    func localIdentifiers(forCloud cloudIDs: [String]) -> [String: String] {
+        guard !cloudIDs.isEmpty else { return [:] }
+        let identifiers = cloudIDs.map(PHCloudIdentifier.init(stringValue:))
+        let mappings = PHPhotoLibrary.shared().localIdentifierMappings(for: identifiers)
+        var result: [String: String] = [:]
+        for (cloud, local) in mappings {
+            if let local = try? local.get() { result[cloud.stringValue] = local }
+        }
+        return result
     }
 
     func startObserving(_ handler: @escaping @MainActor () -> Void) {
