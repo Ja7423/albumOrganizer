@@ -5,6 +5,7 @@ import os
 import Photos
 import ScreenshotKit
 import ScreenshotKitLLM
+import ScreenshotKitML
 import UIKit
 
 /// Owns the `Library`, keeps it in sync with Photos, feeds the processing queue and saves to disk.
@@ -45,17 +46,19 @@ final class LibraryStore {
     /// The write in flight; the next one waits for it so an older snapshot never lands after a newer one.
     @ObservationIgnored private var writeTask: Task<Bool, Never>?
     @ObservationIgnored private var processor: ScreenshotProcessor!
+    @ObservationIgnored private let learning: LearnedModelUpdater
 
     private static let onboardedKey = "didFinishOnboarding"
 
     init(
         photos: PhotoLibraryService = .shared,
         recognizer: any ScreenRecognizing = VisionScreenRecognizer(),
-        pipeline: ClassificationPipeline = .standard,
         refinement: ClassificationPipeline? = .appleIntelligence,
+        learnedModels: LearnedModelStore = LearnedModelUpdater.defaultStore,
         persistence: any LibraryPersisting = LibraryStore.defaultPersistence
     ) {
         self.photos = photos
+        learning = LearnedModelUpdater(store: learnedModels)
         self.persistence = persistence
         let stored = Self.loadLibrary(from: persistence)
         var library = stored.library
@@ -68,13 +71,18 @@ final class LibraryStore {
         processor = ScreenshotProcessor(
             photos: photos,
             recognizer: recognizer,
-            pipeline: pipeline,
+            pipeline: .standard(learned: learning.classifier),
             refinement: refinement,
             library: { [unowned self] in self.library },
             mutate: { [unowned self] body in self.mutate(body) }
         )
         processor.onRecognized = { [unowned self] in importProgress.recognized += 1 }
         processor.onIdle = { [unowned self] in finishImportSteps() }
+        learning.onModelChanged = { [unowned self] in
+            mutate { $0.requeueUnsortedAutomatic() }
+            processor.start()
+        }
+        learning.update(for: library.trainingSet)
         if phase == .app { startSyncing() }
         if library != lastSaved { scheduleSave() }
     }
@@ -195,9 +203,17 @@ final class LibraryStore {
 
     // MARK: - Mutations
 
-    /// Deleting a folder sends its automatic screenshots back through classification.
+    /// A manual move is also a training sample for the learned layer.
+    func move(_ ids: [String], to folderID: UUID?) {
+        mutate { $0.move(ids, to: folderID) }
+        learning.update(for: library.trainingSet)
+    }
+
+    /// Deleting a folder sends its automatic screenshots back through classification, and a deleted
+    /// built-in must leave the learned layer's answers.
     func deleteFolder(_ id: UUID) {
         mutate { $0.deleteFolder(id) }
+        learning.update(for: library.trainingSet)
         processor.start()
     }
 

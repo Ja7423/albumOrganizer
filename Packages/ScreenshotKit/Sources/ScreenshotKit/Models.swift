@@ -120,7 +120,12 @@ public struct Shot: Codable, Hashable, Identifiable, Sendable {
     /// Placed automatically in 未分類, has text, and the refinement pass has not looked at it yet.
     public var awaitsRefinement: Bool {
         guard let auto = autoPlacement, folderID == nil, !auto.isRefined else { return false }
-        return allText.contains { !$0.isWhitespace }
+        return hasText
+    }
+
+    /// Recognition found something other than whitespace.
+    public var hasText: Bool {
+        allText.contains { !$0.isWhitespace }
     }
 
     public static let fallbackTitle = "螢幕截圖"

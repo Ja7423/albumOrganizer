@@ -95,8 +95,7 @@ final class ClassificationEvaluationTests: XCTestCase {
     }
 
     func testRulesOnTheSyntheticSetPlaceNothingWrongly() async throws {
-        let url = try XCTUnwrap(Bundle.module.url(forResource: "labeled-ocr", withExtension: "json"))
-        let samples = try JSONDecoder().decode([LabeledSample].self, from: Data(contentsOf: url))
+        let samples = LabeledSample.seedSamples
         let report = try await EvaluationReport(ClassificationEvaluation.outcomes(of: samples, using: .standard))
         XCTAssertEqual(report.total, samples.count)
         XCTAssertEqual(report.misplaced, 0)

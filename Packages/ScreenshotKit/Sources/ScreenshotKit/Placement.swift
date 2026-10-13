@@ -5,6 +5,8 @@ public enum ClassifierSource: String, Codable, Sendable {
     case rule
     case knn
     case llm
+    /// The text classifier trained on the device from the user's own placements.
+    case learned
 }
 
 public struct AutoPlacement: Codable, Hashable, Sendable {

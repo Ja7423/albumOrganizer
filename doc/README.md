@@ -71,7 +71,8 @@
 | `FeatureTag.swift` / `FeatureDetector.swift` | 自動標籤：含連結、QR code、含電話、含日期、含地址 |
 | `Signals.swift` | 從文字與版面算出訊號（連結、電話、日期、地址、條碼數、對話泡泡、程式符號密度） |
 | `Search.swift` | 全文搜尋，回傳切好前後文的 `SearchHit` |
-| `Classification/*` | 分類器協定、依序執行各層的 `ClassificationPipeline`（目前 `version = 7`）、規則層 `RuleClassifier`、Apple Intelligence 的 prompt `LLMCategoryPrompt`（見 [classification.md](classification.md)） |
+| `Classification/*` | 分類器協定、依序執行各層的 `ClassificationPipeline`（目前 `version = 10`）、規則層 `RuleClassifier`、學習層的訓練資料 `TrainingSet`、Apple Intelligence 的 prompt `LLMCategoryPrompt`（見 [classification.md](classification.md)） |
+| `Resources/seed-samples.json` | 合成的 OCR 樣本：規則層的回歸測試集，也是學習層的種子樣本 |
 
 `LibraryPersistence`（`Packages/LibraryPersistence`，儲存層）依賴 `ScreenshotKit` 與 GRDB，是專案裡唯一碰到 SQLite 的地方：
 
@@ -204,7 +205,7 @@ albumOrganizer/
 │  └─ ScreenshotOrganizer/
 │     ├─ App/                       進入點與 RootView
 │     ├─ Store/                     LibraryStore、UIState、DetailSession
-│     ├─ Services/                  Photos、處理佇列、Vision、Foundation Models
+│     ├─ Services/                  Photos、處理佇列、Vision、學習層的訓練排程
 │     ├─ Views/
 │     │  ├─ Shell/                  AppShell、TabBar、BatchBar、Toast、Sheets、NameDialog
 │     │  ├─ Library/                ShotGridScreen、FoldersScreen、TagsScreen、SearchScreen
@@ -215,14 +216,18 @@ albumOrganizer/
 │     └─ Resources/Fonts/           Lora、Cormorant Garamond、Noto Serif TC（OFL）
 ├─ Packages/ScreenshotKit/
 │  ├─ Sources/ScreenshotKit/        領域模型與分類（見 §1.1）
-│  └─ Tests/ScreenshotKitTests/     Library、編解碼、變動比對、搜尋、訊號、規則分類、pipeline、補判、prompt 測試 + fixtures
+│  ├─ Sources/ScreenshotKitLLM/     Apple Intelligence 補判（Foundation Models）
+│  ├─ Sources/ScreenshotKitML/      學習層：在手機上用 Create ML 訓練的文字分類器
+│  ├─ Sources/ClassificationEval/   評估工具 classification-eval
+│  ├─ Tests/ScreenshotKitTests/     Library、編解碼、變動比對、搜尋、訊號、規則分類、pipeline、補判、prompt、訓練資料測試 + fixtures
+│  └─ Tests/ScreenshotKitMLTests/   學習層的訓練、存讀、分類測試
 ├─ Packages/LibraryPersistence/
 │  ├─ Sources/LibraryPersistence/   SQLite 儲存層（見 storage.md）
 │  └─ Tests/LibraryPersistenceTests/ 讀寫、migration、舊 JSON 匯入測試（in-memory 資料庫）
 └─ doc/
    ├─ README.md                     本文件
    ├─ storage.md                    資料儲存（schema、讀寫、版本升級）
-   ├─ classification.md             自動分類（規則層、Apple Intelligence 補判）
+   ├─ classification.md             自動分類（規則層、學習層、Apple Intelligence 補判）
    ├─ spec/                         各 tab 規格
    └─ plan/                         功能規劃紀錄
 ```
@@ -235,5 +240,5 @@ swift test --package-path Packages/LibraryPersistence
 ```
 
 - App target 沒有測試；可測的規則請放進 `ScreenshotKit`，儲存相關的放進 `LibraryPersistence`。
-- 改了分類規則、門檻或 Apple Intelligence 的 prompt，要調高 `ClassificationPipeline.version`，既有的自動分類結果才會重做（見 [classification.md §7](classification.md#7-調整與擴充)）。
+- 改了分類規則、門檻、學習層的訓練方式或 Apple Intelligence 的 prompt，要調高 `ClassificationPipeline.version`，既有的自動分類結果才會重做（見 [classification.md §8](classification.md#8-調整與擴充)）。
 - 新增功能前先在 `doc/plan/` 留規劃紀錄，做完後更新對應的 `doc/spec/`。

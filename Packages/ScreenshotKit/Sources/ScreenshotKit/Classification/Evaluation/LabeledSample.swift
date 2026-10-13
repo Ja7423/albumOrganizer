@@ -30,6 +30,16 @@ public struct LabeledSample: Codable, Hashable, Sendable {
         self.blocks = blocks
     }
 
+    /// Synthetic screens for every built-in category (`Resources/seed-samples.json`): the rule layer's
+    /// regression set, and extra training data so the learned layer knows categories the user never filed.
+    public static let seedSamples: [LabeledSample] = {
+        guard let url = Bundle.module.url(forResource: "seed-samples", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let samples = try? JSONDecoder().decode([LabeledSample].self, from: data)
+        else { preconditionFailure("seed-samples.json is missing or unreadable") }
+        return samples
+    }()
+
     /// What a classifier layer sees for this sample, with no category excluded.
     public var classifierInput: ClassifierInput {
         classifierInput(excluding: [])

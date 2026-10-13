@@ -11,8 +11,7 @@ final class RuleClassifierTests: XCTestCase {
     }
 
     private func labeledCases() throws -> [LabeledSample] {
-        let url = try XCTUnwrap(Bundle.module.url(forResource: "labeled-ocr", withExtension: "json"))
-        return try JSONDecoder().decode([LabeledSample].self, from: Data(contentsOf: url))
+        LabeledSample.seedSamples
     }
 
     /// Regression guard over synthetic samples. Real accuracy needs a labeled set of actual screenshots.
