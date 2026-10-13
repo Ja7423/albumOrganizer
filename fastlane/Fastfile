@@ -87,8 +87,8 @@ platform :ios do
     build_number = options[:build_number] || next_build_number
     profile_name = ENV.fetch("sigh_#{APP_IDENTIFIER}_appstore_profile-name")
 
-    # 專案平常是 Automatic signing；只在編譯期間改成 match 的 profile，結束後還原，
-    # 不會留下 project.pbxproj 的變更（也不會蓋掉你尚未 commit 的修改）。
+    # 專案的 Release 已指定 match AppStore profile；這裡再依 match 實際下載的 profile 名稱設定一次，
+    # 確保 identity 與 profile 一致。編譯結束後還原，不會留下 project.pbxproj 的變更（也不會蓋掉你尚未 commit 的修改）。
     original_pbxproj = File.read(PBXPROJ)
     begin
       update_code_signing_settings(

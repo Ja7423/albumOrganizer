@@ -15,7 +15,7 @@ LANE_OPTS := $(if $(BUILD_NUMBER),build_number:$(BUILD_NUMBER)) \
              $(if $(VERSION),version:$(VERSION))
 
 .DEFAULT_GOAL := help
-.PHONY: help install version certs certs-appstore certs-init build beta upload lanes
+.PHONY: help install version certs certs-appstore certs-fetch certs-init build beta upload lanes
 
 help: ## 列出可用指令
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
