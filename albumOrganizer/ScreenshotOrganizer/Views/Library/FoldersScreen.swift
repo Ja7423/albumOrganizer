@@ -11,10 +11,10 @@ struct FoldersScreen: View {
             VStack(spacing: 0) {
                 ScreenHeader(kicker: "\(lib.folders.count) 個資料夾", title: "資料夾") {
                     Button { ui.present(.settings, for: .detail) } label: {
-                        Image(systemName: "gearshape").font(.system(size: 17))
+                        Image(systemName: "icloud.and.arrow.up").font(.system(size: 17))
                     }
                     .buttonStyle(.ghost)
-                    .accessibilityLabel("設定")
+                    .accessibilityLabel("iCloud 備份")
                     Button { ui.dialog = .newFolder(moveAfter: false) } label: {
                         Image(systemName: "plus").font(.system(size: 15, weight: .medium))
                         Text("新增")

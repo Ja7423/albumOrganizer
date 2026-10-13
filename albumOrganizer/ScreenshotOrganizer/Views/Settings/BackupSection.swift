@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// iCloud backup status and actions, in the 設定 sheet.
+/// iCloud backup status and actions, in the iCloud 備份 sheet.
 struct BackupSection: View {
     @Environment(LibraryStore.self) private var store
     @Environment(UIState.self) private var ui
@@ -8,11 +8,9 @@ struct BackupSection: View {
     var body: some View {
         let backup = store.backup
         VStack(alignment: .leading, spacing: 0) {
-            Kicker("iCloud 備份")
-                .padding(.top, 16)
             Text(statusLine(backup))
                 .font(Typeface.body(15))
-                .padding(.top, 6)
+                .padding(.top, 16)
             if let error = backup.lastError {
                 Text(error)
                     .font(Typeface.body(13))
