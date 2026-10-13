@@ -8,7 +8,8 @@
 | UI | SwiftUI，`@Observable` 狀態，預設 actor isolation 為 `MainActor` |
 | 領域邏輯 | 本地 Swift Package `ScreenshotKit`（iOS 17 / macOS 14，可單獨 `swift test`） |
 | 儲存 | SQLite（GRDB 7）：`Application Support/library.sqlite`，本地 Swift Package `LibraryPersistence`（見 [storage.md](storage.md)） |
-| 文件更新日期 | 2026-10-11（對應 `feature/llm-refinement`） |
+| App 名稱 | Scapio（bundle id `com.chiawei.albumOrganizer`），透過 TestFlight 發佈（見 [deploy.md](deploy.md)） |
+| 文件更新日期 | 2026-10-13（對應 `feature/deploy-flow`） |
 
 ## 文件索引
 
@@ -17,6 +18,7 @@
 | [README.md](README.md)（本文件） | 架構、資料流、使用流程、目錄結構 |
 | [storage.md](storage.md) | 資料儲存：SQLite 的架構、schema、讀寫與 migration 機制 |
 | [classification.md](classification.md) | 自動分類：OCR、訊號、規則層、Apple Intelligence 補判、截圖狀態、重新分類 |
+| [deploy.md](deploy.md) | 部署：fastlane match 簽章、版本號、編譯、asc 上傳 TestFlight、GitHub Actions |
 | [spec/tab-screenshots.md](spec/tab-screenshots.md) | 「截圖」tab：所有截圖 grid、篩選 chip、批次選取 |
 | [spec/tab-folders.md](spec/tab-folders.md) | 「資料夾」tab：資料夾列表、處理中／未分類、新增／改名／刪除 |
 | [spec/tab-tags.md](spec/tab-tags.md) | 「標籤」tab：自動標籤、我的標籤、新增／刪除 |
@@ -233,10 +235,14 @@ albumOrganizer/
 ├─ Packages/LibraryPersistence/
 │  ├─ Sources/LibraryPersistence/   SQLite 儲存層（見 storage.md）
 │  └─ Tests/LibraryPersistenceTests/ 讀寫、migration、舊 JSON 匯入測試（in-memory 資料庫）
+├─ fastlane/                        Appfile、Matchfile、Fastfile（簽章、編譯、上傳，見 deploy.md）
+├─ .github/workflows/testflight.yml push 到 beta 時上傳 TestFlight
+├─ Makefile                         fastlane 指令捷徑（make help）
 └─ doc/
    ├─ README.md                     本文件
    ├─ storage.md                    資料儲存（schema、讀寫、版本升級）
    ├─ classification.md             自動分類（規則層、學習層、Apple Intelligence 補判）
+   ├─ deploy.md                     部署到 TestFlight
    ├─ spec/                         各 tab 規格
    └─ plan/                         功能規劃紀錄
 ```
@@ -251,3 +257,4 @@ swift test --package-path Packages/LibraryPersistence
 - App target 沒有測試；可測的規則請放進 `ScreenshotKit`，儲存相關的放進 `LibraryPersistence`。
 - 改了分類規則、門檻、學習層的訓練方式或 Apple Intelligence 的 prompt，要調高 `ClassificationPipeline.version`，既有的自動分類結果才會重做（見 [classification.md §8](classification.md#8-調整與擴充)）。
 - 新增功能前先在 `doc/plan/` 留規劃紀錄，做完後更新對應的 `doc/spec/`。
+- 發佈到 TestFlight：push 到 `beta` branch，或本機 `make beta`（見 [deploy.md](deploy.md)）。
