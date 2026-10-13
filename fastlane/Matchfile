@@ -1,0 +1,13 @@
+git_url("git@github.com:Ja7423/app-certificates.git")
+
+git_branch("albumOrganizer")
+
+storage_mode("git")
+
+type("development") # 預設類型，可在 lane 裡覆蓋
+
+app_identifier(["com.chiawei.albumOrganizer"])
+
+team_id("7RMCG6LBC4")
+
+# 不設定 username：Fastfile 透過 App Store Connect API Key 登入，不會遇到 2FA。
