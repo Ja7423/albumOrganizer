@@ -1,0 +1,67 @@
+# 編譯 App Store 版本並用 asc 上傳到 TestFlight。
+#
+# 需要在 repo Settings → Secrets and variables → Actions 設定：
+#   ASC_KEY_ID            App Store Connect API Key ID
+#   ASC_ISSUER_ID         App Store Connect Issuer ID
+#   ASC_PRIVATE_KEY_B64   base64 -i AuthKey_XXX.p8 的輸出
+#   MATCH_PASSWORD        match 加密 cert repo 的密碼（與本機相同）
+#   MATCH_DEPLOY_KEY      能讀 Ja7423/app-certificates 的 SSH 私鑰（公鑰加到該 repo 的 Deploy keys，唯讀）
+
+name: TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: "Build number（留空則由 asc 查下一號）"
+        required: false
+        default: ""
+      wait:
+        description: "等 App Store Connect 處理完成"
+        type: boolean
+        default: false
+
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+jobs:
+  beta:
+    runs-on: macos-26
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "26.5"
+
+      # Matchfile 的 git_url 是 SSH
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.MATCH_DEPLOY_KEY }}
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Install asc
+        run: brew install asc
+
+      - name: Build and upload
+        run: make beta BUILD_NUMBER="${{ inputs.build_number }}" WAIT="${{ inputs.wait && 'true' || '' }}"
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_B64: ${{ secrets.ASC_PRIVATE_KEY_B64 }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: albumOrganizer-ipa
+          path: |
+            build/*.ipa
+            build/*.dSYM.zip
+          retention-days: 14
