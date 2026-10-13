@@ -29,6 +29,8 @@ public struct ClassifierVerdict: Hashable, Sendable {
 
 /// One layer of the classification cascade (rules, kNN, on-device LLM).
 public protocol ScreenshotClassifier: Sendable {
-    /// `nil` when the layer has no opinion.
+    /// `nil` when the layer has no opinion on this screenshot, including when it can never judge it.
+    /// Throws only when it cannot answer right now (e.g. a model that is unavailable or busy), so the
+    /// caller may try the same screenshot again later.
     func classify(_ input: ClassifierInput) async throws -> ClassifierVerdict?
 }

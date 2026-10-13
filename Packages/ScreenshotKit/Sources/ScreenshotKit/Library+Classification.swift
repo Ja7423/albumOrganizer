@@ -46,6 +46,26 @@ public extension Library {
         }
     }
 
+    /// Automatic screenshots still in 未分類 that have text and no refinement pass yet.
+    var pendingRefinementIDs: [String] {
+        shots.filter(\.awaitsRefinement).map(\.id)
+    }
+
+    /// Records a refinement result. Ignored unless the screenshot is still automatic and in 未分類,
+    /// so a manual move made meanwhile always wins. A verdict for a deleted built-in counts as no answer.
+    mutating func applyRefinement(_ id: String, verdict: ClassifierVerdict?) {
+        let destination = verdict.flatMap { self.folderID(for: $0.target) }
+        update([id]) { shot in
+            guard var auto = shot.autoPlacement, shot.folderID == nil else { return }
+            auto.isRefined = true
+            if let destination, let verdict {
+                shot.folderID = destination
+                auto.source = verdict.source
+            }
+            shot.placement = .auto(auto)
+        }
+    }
+
     /// Sends automatic placements made by an older classifier back to the queue. User placements stay.
     mutating func requeueOutdated(version: Int) {
         let outdated = shots.filter { ($0.autoPlacement?.classifierVersion ?? version) < version }.map(\.id)

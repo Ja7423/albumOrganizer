@@ -3,7 +3,7 @@ import Foundation
 /// Runs the classifier layers in order and keeps the first verdict that clears its layer's threshold.
 public struct ClassificationPipeline: Sendable {
     /// Bump whenever any layer's rules, thresholds or prompt change: older automatic results get redone.
-    public static let version = 3
+    public static let version = 4
 
     public struct Layer: Sendable {
         public var classifier: any ScreenshotClassifier
@@ -27,10 +27,22 @@ public struct ClassificationPipeline: Sendable {
     public func classify(_ input: ClassifierInput) async -> ClassifierVerdict? {
         for layer in layers {
             guard let verdict = try? await layer.classifier.classify(input) else { continue }
-            if verdict.confidence >= layer.threshold, !input.excluded.contains(verdict.target) {
-                return verdict
-            }
+            if Self.accepts(verdict, from: layer, for: input) { return verdict }
         }
         return nil
+    }
+
+    /// Like `classify`, but a throwing layer ends the run and its error propagates, so the caller can
+    /// retry later instead of recording "no answer".
+    public func classifyOrThrow(_ input: ClassifierInput) async throws -> ClassifierVerdict? {
+        for layer in layers {
+            guard let verdict = try await layer.classifier.classify(input) else { continue }
+            if Self.accepts(verdict, from: layer, for: input) { return verdict }
+        }
+        return nil
+    }
+
+    private static func accepts(_ verdict: ClassifierVerdict, from layer: Layer, for input: ClassifierInput) -> Bool {
+        verdict.confidence >= layer.threshold && !input.excluded.contains(verdict.target)
     }
 }

@@ -62,6 +62,7 @@ struct ShotRecord: Codable, FetchableRecord, PersistableRecord {
     var placement: String
     var autoSource: String?
     var classifierVersion: Int?
+    var isRefined = false
     // Stored as JSON text by GRDB.
     var tags: [String]
     var featureTags: [String]
@@ -80,6 +81,7 @@ struct ShotRecord: Codable, FetchableRecord, PersistableRecord {
             placement = PlacementKind.auto.rawValue
             autoSource = auto.source?.rawValue
             classifierVersion = auto.classifierVersion
+            isRefined = auto.isRefined
         case .user:
             placement = PlacementKind.user.rawValue
         }
@@ -95,9 +97,11 @@ struct ShotRecord: Codable, FetchableRecord, PersistableRecord {
             return .user
         case .auto:
             guard let classifierVersion else { return .pending }
-            guard let autoSource else { return .auto(AutoPlacement(source: nil, classifierVersion: classifierVersion)) }
+            guard let autoSource else {
+                return .auto(AutoPlacement(source: nil, classifierVersion: classifierVersion, isRefined: isRefined))
+            }
             guard let source = ClassifierSource(rawValue: autoSource) else { return .pending }
-            return .auto(AutoPlacement(source: source, classifierVersion: classifierVersion))
+            return .auto(AutoPlacement(source: source, classifierVersion: classifierVersion, isRefined: isRefined))
         case .pending, nil:
             return .pending
         }

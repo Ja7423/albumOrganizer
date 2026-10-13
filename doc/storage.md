@@ -9,7 +9,7 @@ App 的資料是一個值型別 `Library`，執行時整份放在記憶體裡，
 | 舊格式 | `library.json`（SQLite 之前的格式）：第一次開啟資料庫時匯入一次，之後改名為 `library.imported.json` 保留 |
 | 內容 | 截圖索引、OCR 文字、資料夾、標籤、分類狀態。**沒有任何圖片**（圖片一律即時向 Photos 要，見 [README §1.5](README.md#15-匯入與檔案處理)） |
 | 設計決策 | 為什麼選 SQLite、為什麼不用 SwiftData，見 [plan/library-storage-sqlite-2026-10-11.md](plan/library-storage-sqlite-2026-10-11.md) |
-| 文件更新日期 | 2026-10-11（對應 `feature/library-storage` 的階段 2 實作） |
+| 文件更新日期 | 2026-10-11（對應 `feature/llm-refinement`：新增 `shot.isRefined`） |
 
 ---
 
@@ -79,6 +79,7 @@ LibraryStore（App，@MainActor）
 | `placement` | TEXT NOT NULL | `placement` | `pending` / `auto` / `user` |
 | `autoSource` | TEXT | `AutoPlacement.source` | 只有 `auto` 時有值：`rule` / `knn` / `llm`；NULL 表示判斷不出來 |
 | `classifierVersion` | INTEGER | `AutoPlacement.classifierVersion` | 只有 `auto` 時有值 |
+| `isRefined` | BOOLEAN NOT NULL DEFAULT 0 | `AutoPlacement.isRefined` | Apple Intelligence 補判是否已經看過這張（見 [classification.md §4](classification.md#4-第二層apple-intelligence-補判)）。`auto` 以外的截圖一律是 0 |
 | `tags` | TEXT NOT NULL | `tags` | JSON 陣列，使用者加的標籤 |
 | `featureTags` | TEXT NOT NULL | `featureTags` | JSON 陣列，自動標籤的 key，已扣掉使用者移除過的 |
 | `dismissedFeatureTags` | TEXT NOT NULL | `dismissedFeatureTags` | JSON 陣列，使用者移除過的自動標籤 |
@@ -143,7 +144,10 @@ GRDB 把已經執行過的 migration 記在 `grdb_migrations` 表。
 | identifier | 內容 |
 |------|------|
 | `v1-schema` | 建立 §2.1、§2.2 的所有表 |
+| `v3-shot-is-refined` | `shot` 加上 `isRefined` |
 | `v2-import-legacy-json` | 如果有 `library.json`，匯入一次（見 §3.1） |
+
+表格依**執行順序**排列。匯入舊 JSON 時是用目前的 Record 寫入，需要最新的 schema，所以它永遠註冊在最後（見 §4.2）。identifier 的編號代表加入的先後，不代表執行順序。
 
 ---
 
@@ -232,11 +236,13 @@ store.mutate { $0.xxx }
 
 ### 4.1 調整分類規則（不需要改 schema）
 
-改了規則、門檻或之後的 prompt，**只要調高 `ClassificationPipeline.version`**。下次啟動時，`requeueOutdated` 會把 `classifierVersion` 比較舊的自動分類送回處理中重新分類；使用者放入的（`placement = 'user'`）不動。結果經由一般的存檔寫回資料庫。
+改了規則、門檻或 Apple Intelligence 的 prompt，**只要調高 `ClassificationPipeline.version`**。下次啟動時，`requeueOutdated` 會把 `classifierVersion` 比較舊的自動分類送回處理中重新分類；使用者放入的（`placement = 'user'`）不動。結果經由一般的存檔寫回資料庫。
 
 ### 4.2 修改 schema
 
-**一律新增一個 migration**，加在 `LibraryMigrator.migrator` 的最後面，identifier 依序編號（`v3-…`）。**已經發佈的 migration 永遠不要修改**：使用者的資料庫已經執行過它，改了也不會再跑。
+**一律新增一個 migration**，identifier 依序編號（下一個是 `v4-…`）。**已經發佈的 migration 永遠不要修改**：使用者的資料庫已經執行過它，改了也不會再跑。
+
+新的 schema migration 要加在 `v2-import-legacy-json` **前面**、其他 schema migration 後面。匯入舊 JSON 時是用目前的 `ShotRecord` 寫入整份資料，表格必須已經是最新的 schema，否則從舊 JSON 升級的裝置會寫入失敗。GRDB 會執行所有還沒套用的 migration（遷移目標是最後一個註冊的），所以已經跑過匯入的資料庫，仍然會補跑插在前面的新 migration。`v3-shot-is-refined` 就是這樣加入的，`testDatabaseFromBeforeRefinementGainsTheColumn` 驗證了這個行為。
 
 先看相容性：
 

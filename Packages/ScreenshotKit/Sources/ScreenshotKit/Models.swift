@@ -117,6 +117,12 @@ public struct Shot: Codable, Hashable, Identifiable, Sendable {
         return nil
     }
 
+    /// Placed automatically in 未分類, has text, and the refinement pass has not looked at it yet.
+    public var awaitsRefinement: Bool {
+        guard let auto = autoPlacement, folderID == nil, !auto.isRefined else { return false }
+        return allText.contains { !$0.isWhitespace }
+    }
+
     public static let fallbackTitle = "螢幕截圖"
 
     /// The first substantial line of text, used as the screenshot's heading.

@@ -92,11 +92,15 @@ N 個資料夾                [＋ 新增]
 
 | 方式 | 結果 placement |
 |------|------|
-| 自動分類命中內建類別 | `.auto(source: .rule, version)` |
-| 自動分類判斷不出 | `.auto(source: nil)`，進未分類 |
+| 規則層命中內建類別 | `.auto(source: .rule, version)` |
+| 規則層判斷不出 | `.auto(source: nil)`，進未分類，之後在背景用 Apple Intelligence 補判 |
+| 補判命中內建類別 | `.auto(source: .llm, isRefined: true)`，從未分類移到資料夾 |
+| 補判判斷不出（或裝置不支援） | 留在未分類；判斷不出時標記 `isRefined: true`，不支援時下次再試 |
 | 批次或詳細頁「移到資料夾」（包含移到未分類） | `.user`，永不再被自動移動 |
 | 分類器版本更新 | 舊版本的自動結果回到處理中重做；`.user` 不動 |
-| 自動分類正在跑時使用者先手動移動 | 手動結果優先，分類結果被丟棄 |
+| 自動分類或補判正在跑時使用者先手動移動 | 手動結果優先，分類結果被丟棄 |
+
+完整的分類規則見 [classification.md](../classification.md)。
 
 ## 7. 驗收清單
 

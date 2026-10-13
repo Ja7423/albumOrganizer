@@ -51,6 +51,7 @@ final class LibraryStore {
         photos: PhotoLibraryService = .shared,
         recognizer: any ScreenRecognizing = VisionScreenRecognizer(),
         pipeline: ClassificationPipeline = .standard,
+        refinement: ClassificationPipeline? = .appleIntelligence,
         persistence: any LibraryPersisting = LibraryStore.defaultPersistence
     ) {
         self.photos = photos
@@ -67,6 +68,7 @@ final class LibraryStore {
             photos: photos,
             recognizer: recognizer,
             pipeline: pipeline,
+            refinement: refinement,
             library: { [unowned self] in self.library },
             mutate: { [unowned self] body in self.mutate(body) }
         )

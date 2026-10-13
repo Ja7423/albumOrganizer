@@ -127,6 +127,34 @@ final class SQLiteLibraryDatabaseTests: XCTestCase {
         XCTAssertEqual(loaded.deletedBuiltIns, [.recipe])
     }
 
+    func testRefinementMarkRoundTrips() throws {
+        let (db, library) = try savedFixture()
+        var refined = library
+        refined.applyClassification("pending-shot", verdict: nil, features: [], version: 3)
+        refined.applyRefinement("pending-shot", verdict: nil)
+        try db.store.save(refined, changes: LibraryChanges(upsertedShotIDs: ["pending-shot"]))
+
+        XCTAssertEqual(try db.loadLibrary()?.shot("pending-shot")?.autoPlacement?.isRefined, true)
+    }
+
+    func testDatabaseFromBeforeRefinementGainsTheColumn() throws {
+        let queue = try DatabaseQueue()
+        _ = SQLiteLibraryDatabase(opening: { queue })
+        let library = try fixtureLibrary()
+        try SQLiteLibraryDatabase(opening: { queue }).save(library, changes: .everything(in: library))
+        try queue.write { db in
+            try db.execute(sql: """
+            ALTER TABLE shot DROP COLUMN isRefined;
+            DELETE FROM grdb_migrations WHERE identifier = 'v3-shot-is-refined';
+            """)
+        }
+
+        let reopened = SQLiteLibraryDatabase(opening: { queue })
+        guard case let .loaded(loaded) = try reopened.load() else { return XCTFail("expected rows") }
+        XCTAssertEqual(loaded, library)
+        XCTAssertTrue(loaded.shots.compactMap(\.autoPlacement).allSatisfy { !$0.isRefined })
+    }
+
     func testDatabaseThatCannotOpenThrowsInsteadOfSaving() {
         struct Locked: Error {}
         let store = SQLiteLibraryDatabase(opening: { throw Locked() })

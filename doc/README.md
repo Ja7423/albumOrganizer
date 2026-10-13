@@ -8,7 +8,7 @@
 | UI | SwiftUI，`@Observable` 狀態，預設 actor isolation 為 `MainActor` |
 | 領域邏輯 | 本地 Swift Package `ScreenshotKit`（iOS 17 / macOS 14，可單獨 `swift test`） |
 | 儲存 | SQLite（GRDB 7）：`Application Support/library.sqlite`，本地 Swift Package `LibraryPersistence`（見 [storage.md](storage.md)） |
-| 文件更新日期 | 2026-10-11（對應 `feature/library-storage`） |
+| 文件更新日期 | 2026-10-11（對應 `feature/llm-refinement`） |
 
 ## 文件索引
 
@@ -16,6 +16,7 @@
 |------|------|
 | [README.md](README.md)（本文件） | 架構、資料流、使用流程、目錄結構 |
 | [storage.md](storage.md) | 資料儲存：SQLite 的架構、schema、讀寫與 migration 機制 |
+| [classification.md](classification.md) | 自動分類：OCR、訊號、規則層、Apple Intelligence 補判、截圖狀態、重新分類 |
 | [spec/tab-screenshots.md](spec/tab-screenshots.md) | 「截圖」tab：所有截圖 grid、篩選 chip、批次選取 |
 | [spec/tab-folders.md](spec/tab-folders.md) | 「資料夾」tab：資料夾列表、處理中／未分類、新增／改名／刪除 |
 | [spec/tab-tags.md](spec/tab-tags.md) | 「標籤」tab：自動標籤、我的標籤、新增／刪除 |
@@ -61,16 +62,16 @@
 | 檔案 | 職責 |
 |------|------|
 | `Library.swift` | 資料根。`Scope` 篩選、Photos 同步（`sync(with:)`）、資料夾 CRUD、標籤 CRUD、`hide`（從 App 移除） |
-| `Library+Classification.swift` | 待分類清單、`classifierInput`、`applyClassification`（使用者手動搬過就不覆蓋）、`requeueOutdated` |
+| `Library+Classification.swift` | 待分類與待補判清單、`classifierInput`、`applyClassification` / `applyRefinement`（使用者手動搬過就不覆蓋）、`requeueOutdated` |
 | `LibraryCodec.swift` | 舊格式 `library.json` 的編解碼，現在只用於第一次啟動時匯入 |
 | `LibraryChanges.swift` | `Library.changes(since:)`：比對兩份 Library，算出哪些截圖、資料夾、標籤有變動 |
 | `Models.swift` | `Shot`、`Folder`、`TextBlock`、`NormalizedRect`、`AssetInfo`、`TextBlockFilter`（去掉狀態列文字） |
-| `Placement.swift` | `Placement`：`.pending`（處理中）/ `.auto(source, version)` / `.user`（鎖定） |
+| `Placement.swift` | `Placement`：`.pending`（處理中）/ `.auto(source, version, isRefined)` / `.user`（鎖定） |
 | `Category.swift` | 12 個內建類別 `BuiltInCategory`（key 固定、名稱只是顯示） |
 | `FeatureTag.swift` / `FeatureDetector.swift` | 自動標籤：含連結、QR code、含電話、含日期、含地址 |
 | `Signals.swift` | 從文字與版面算出訊號（連結、電話、日期、地址、條碼數、對話泡泡、程式符號密度） |
 | `Search.swift` | 全文搜尋，回傳切好前後文的 `SearchHit` |
-| `Classification/*` | 分類器協定、依序執行各層的 `ClassificationPipeline`（目前 `version = 3`，只有規則層，門檻 0.7） |
+| `Classification/*` | 分類器協定、依序執行各層的 `ClassificationPipeline`（目前 `version = 4`）、規則層 `RuleClassifier`、Apple Intelligence 的 prompt `LLMCategoryPrompt`（見 [classification.md](classification.md)） |
 
 `LibraryPersistence`（`Packages/LibraryPersistence`，儲存層）依賴 `ScreenshotKit` 與 GRDB，是專案裡唯一碰到 SQLite 的地方：
 
@@ -91,7 +92,8 @@
 | | `UIState.swift` | 目前 tab、截圖 tab 的 chip、各 tab 的 NavigationStack path、批次選取、詳細頁、sheet、dialog、toast |
 | | `DetailSession.swift` | 詳細頁開啟時拍下的 id 清單與目前頁 |
 | `Services/` | `PhotoLibraryService.swift` | 權限、撈出所有螢幕截圖、變更通知、縮圖串流（`PHCachingImageManager` + 64MB `NSCache`）、原圖資料 |
-| | `ScreenshotProcessor.swift` | 一次處理一張：先 OCR、再分類；支援把某張插到最前面（`prioritize`） |
+| | `ScreenshotProcessor.swift` | 一次處理一張：先 OCR、再用規則分類；主佇列清空後，對未分類的截圖用 Apple Intelligence 補判；支援把某張插到最前面（`prioritize`） |
+| | `FoundationModelsClassifier.swift` | 呼叫裝置上的 Foundation Models 補判；分辨「這張判斷不了」和「現在判斷不了」 |
 | | `TextRecognizer.swift` | `VisionScreenRecognizer`：繁中 + 英文 OCR、條碼偵測，在 detached task 執行 |
 | `Views/Shell/` | `AppShell.swift` | Tab 切換、TabBar / BatchBar、疊上詳細頁、SheetHost、NameDialog、Toast |
 | | `Sheets.swift` | 「移到資料夾」「標籤」sheet 與命名對話框 |
@@ -109,8 +111,10 @@ Photos 相簿 ──fetchScreenshots──▶ LibraryStore.syncWithPhotos()
                                    └─ Library.sync(with:)    新的截圖以 .pending 加入、Photos 刪掉的移除
                                    └─ ScreenshotProcessor.start()
                                          ├─ 取原圖 → VisionScreenRecognizer → Library.setRecognition
-                                         └─ classifierInput → ClassificationPipeline → FeatureDetector
-                                              → Library.applyClassification（放進資料夾 + 加自動標籤）
+                                         ├─ classifierInput → ClassificationPipeline（規則）→ FeatureDetector
+                                         │    → Library.applyClassification（放進資料夾 + 加自動標籤）
+                                         └─ 主佇列清空後：未分類的截圖 → Apple Intelligence
+                                              → Library.applyRefinement（放進資料夾，或標記為已補判）
 View 操作 ──store.mutate { $0.xxx }──▶ Library 改變 ──@Observable──▶ 所有畫面重繪
                                    └─ 400ms 後寫入有變動的部分（進背景時立即寫）
 View 操作 ──ui.xxx──▶ UIState（導航、選取、sheet、toast）
@@ -128,11 +132,11 @@ View 操作 ──ui.xxx──▶ UIState（導航、選取、sheet、toast）
 |------|------|------|
 | 處理中 | `placement == .pending` | 資料夾 tab 的「處理中」列；不出現在「未分類」 |
 | 自動分類 | `placement == .auto`，`source != nil` | 對應的內建資料夾；詳細頁資料夾按鈕顯示 ✦ 圖示 |
-| 自動判斷不出來 | `placement == .auto`，`source == nil` | 未分類 |
+| 自動判斷不出來 | `placement == .auto`，`source == nil` | 未分類；`isRefined == false` 的會在背景用 Apple Intelligence 補判 |
 | 使用者放入（鎖定） | `placement == .user` | 使用者選的資料夾（或未分類）；之後永不自動重分類 |
 | 從 App 移除 | id 在 `hiddenShotIDs` | 哪裡都不出現；同步也不會加回，Photos 原檔保留 |
 
-OCR 失敗會在下一輪重試，最多 3 次（`Shot.maxRecognitionAttempts`），之後當作沒有文字直接分類。`ClassificationPipeline.version` 調高時，App 啟動會把舊版本自動分類的截圖送回處理中重新分類（使用者放入的不動）。
+自動分類的完整規則見 [classification.md](classification.md)。OCR 失敗會在下一輪重試，最多 3 次（`Shot.maxRecognitionAttempts`），之後當作沒有文字直接分類。`ClassificationPipeline.version` 調高時，App 啟動會把舊版本自動分類的截圖送回處理中重新分類（使用者放入的不動）。
 
 ### 1.5 匯入與檔案處理
 
@@ -200,7 +204,7 @@ albumOrganizer/
 │  └─ ScreenshotOrganizer/
 │     ├─ App/                       進入點與 RootView
 │     ├─ Store/                     LibraryStore、UIState、DetailSession
-│     ├─ Services/                  Photos、處理佇列、Vision
+│     ├─ Services/                  Photos、處理佇列、Vision、Foundation Models
 │     ├─ Views/
 │     │  ├─ Shell/                  AppShell、TabBar、BatchBar、Toast、Sheets、NameDialog
 │     │  ├─ Library/                ShotGridScreen、FoldersScreen、TagsScreen、SearchScreen
@@ -211,13 +215,14 @@ albumOrganizer/
 │     └─ Resources/Fonts/           Lora、Cormorant Garamond、Noto Serif TC（OFL）
 ├─ Packages/ScreenshotKit/
 │  ├─ Sources/ScreenshotKit/        領域模型與分類（見 §1.1）
-│  └─ Tests/ScreenshotKitTests/     Library、編解碼、變動比對、搜尋、訊號、規則分類、pipeline 測試 + fixtures
+│  └─ Tests/ScreenshotKitTests/     Library、編解碼、變動比對、搜尋、訊號、規則分類、pipeline、補判、prompt 測試 + fixtures
 ├─ Packages/LibraryPersistence/
 │  ├─ Sources/LibraryPersistence/   SQLite 儲存層（見 storage.md）
 │  └─ Tests/LibraryPersistenceTests/ 讀寫、migration、舊 JSON 匯入測試（in-memory 資料庫）
 └─ doc/
    ├─ README.md                     本文件
    ├─ storage.md                    資料儲存（schema、讀寫、版本升級）
+   ├─ classification.md             自動分類（規則層、Apple Intelligence 補判）
    ├─ spec/                         各 tab 規格
    └─ plan/                         功能規劃紀錄
 ```
@@ -230,5 +235,5 @@ swift test --package-path Packages/LibraryPersistence
 ```
 
 - App target 沒有測試；可測的規則請放進 `ScreenshotKit`，儲存相關的放進 `LibraryPersistence`。
-- 改了分類規則、門檻或之後的 prompt，要調高 `ClassificationPipeline.version`，既有的自動分類結果才會重做。
+- 改了分類規則、門檻或 Apple Intelligence 的 prompt，要調高 `ClassificationPipeline.version`，既有的自動分類結果才會重做（見 [classification.md §7](classification.md#7-調整與擴充)）。
 - 新增功能前先在 `doc/plan/` 留規劃紀錄，做完後更新對應的 `doc/spec/`。
