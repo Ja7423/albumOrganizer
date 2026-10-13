@@ -75,7 +75,7 @@ struct SheetHost: View {
         switch sheet {
         case .move: return "移到資料夾"
         case .tags: return "標籤"
-        case .settings: return "設定"
+        case .settings: return "iCloud 備份"
         }
     }
 
