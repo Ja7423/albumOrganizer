@@ -14,24 +14,14 @@ import UIKit
 final class LibraryStore {
     enum Phase: Equatable { case welcome, permission, restoreOffer, importing, app }
 
-    /// Import progress for the onboarding screen. Steps: 0 掃描, 1 辨識, 2 分類, 3 完成.
-    struct ImportProgress: Equatable {
-        var found = 0
-        var recognized = 0
-        var total = 0
-        var step = 0
-
-        var fraction: Double {
-            let scan = step > 0 ? 1.0 : 0.0
-            let ocr = total == 0 ? (step > 1 ? 1 : 0) : Double(recognized) / Double(total)
-            let classify = step > 2 ? 1.0 : 0.0
-            return scan * 0.2 + ocr * 0.7 + classify * 0.1
-        }
-    }
-
     private(set) var library: Library
     var phase: Phase
-    private(set) var importProgress = ImportProgress()
+    /// The current processing run, shown on the import screen and in the bar above the tabs.
+    private(set) var processingProgress = ProcessingProgress()
+    /// Screenshots the import's scan found.
+    private(set) var importFoundCount = 0
+    /// The import's first run has no recognition or classification work left.
+    private(set) var isImportProcessed = false
     private(set) var permissionDenied = false
     /// The user granted access to selected photos only.
     private(set) var isLimitedAccess = false
@@ -51,8 +41,11 @@ final class LibraryStore {
     @ObservationIgnored private var writeTask: Task<Bool, Never>?
     @ObservationIgnored private var processor: ScreenshotProcessor!
     @ObservationIgnored private let learning: LearnedModelUpdater
+    @ObservationIgnored private var clearProgressTask: Task<Void, Never>?
 
     private static let onboardedKey = "didFinishOnboarding"
+    /// How long a finished run's summary stays in the bar.
+    private static let summaryDuration: Duration = .seconds(3)
 
     init(
         photos: PhotoLibraryService = .shared,
@@ -82,8 +75,9 @@ final class LibraryStore {
             library: { [unowned self] in self.library },
             mutate: { [unowned self] body in self.mutate(body) }
         )
-        processor.onRecognized = { [unowned self] in importProgress.recognized += 1 }
-        processor.onIdle = { [unowned self] in finishImportSteps() }
+        processor.onRunStarted = { [unowned self] in beginProcessingRun() }
+        processor.onBatchApplied = { [unowned self] in processingProgress.record($0, processingCount: processingCount) }
+        processor.onRunFinished = { [unowned self] in finishProcessingRun() }
         learning.onModelChanged = { [unowned self] in
             mutate { $0.requeueUnsortedAutomatic() }
             processor.start()
@@ -162,12 +156,10 @@ final class LibraryStore {
 
     private func startImport() {
         phase = .importing
-        importProgress = ImportProgress()
+        isImportProcessed = false
         let assets = photos.fetchScreenshots()
         mutate { $0.sync(with: assets) }
-        importProgress.found = library.shots.count
-        importProgress.total = library.pendingRecognitionIDs.count
-        importProgress.step = 1
+        importFoundCount = library.shots.count
         startSyncing(syncFirst: false)
     }
 
@@ -258,13 +250,22 @@ final class LibraryStore {
         processor.prioritize(id)
     }
 
-    /// Recognition and classification run together; give the 分類 step a beat on screen before 完成.
-    private func finishImportSteps() {
-        guard phase == .importing, importProgress.step < 3 else { return }
-        importProgress.step = 2
-        Task {
-            try? await Task.sleep(for: .milliseconds(600))
-            importProgress.step = 3
+    // MARK: - Processing progress
+
+    private func beginProcessingRun() {
+        clearProgressTask?.cancel()
+        processingProgress.begin(processingCount: processingCount)
+    }
+
+    /// A run big enough to show the bar leaves its summary up briefly before the bar goes away.
+    private func finishProcessingRun() {
+        if phase == .importing { isImportProcessed = true }
+        processingProgress.finish()
+        guard case .finished = processingProgress.phase else { return }
+        clearProgressTask = Task {
+            try? await Task.sleep(for: Self.summaryDuration)
+            guard !Task.isCancelled else { return }
+            processingProgress.clear()
         }
     }
 
@@ -288,8 +289,12 @@ final class LibraryStore {
         processor.start()
     }
 
+    /// Screenshots added or hidden mid-run change the progress total along with the library.
     func mutate(_ body: (inout Library) -> Void) {
         body(&library)
+        if processingProgress.isRunning {
+            processingProgress.updateRemaining(processingCount: processingCount)
+        }
         scheduleSave()
     }
 

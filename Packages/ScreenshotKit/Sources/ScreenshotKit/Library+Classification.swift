@@ -26,24 +26,25 @@ public extension Library {
     /// What the classifier layers see for one screenshot. Deleted built-ins are excluded.
     func classifierInput(for id: String) -> ClassifierInput? {
         guard let shot = shot(id) else { return nil }
-        return ClassifierInput(
-            text: shot.allText,
-            signals: SignalExtractor.extract(blocks: shot.blocks, barcodes: shot.barcodes),
-            excluded: Set(deletedBuiltIns.map(ClassificationTarget.builtIn))
-        )
+        return ClassifierInput(blocks: shot.blocks, barcodes: shot.barcodes, excluded: excludedTargets)
+    }
+
+    /// Targets no classifier may answer: the built-in categories the user deleted.
+    var excludedTargets: Set<ClassificationTarget> {
+        Set(deletedBuiltIns.map(ClassificationTarget.builtIn))
     }
 
     /// Places a screenshot from a pipeline result. Ignored when the user moved it in the meantime,
     /// so a manual move always wins over a classification that was already running.
     mutating func applyClassification(_ id: String, verdict: ClassifierVerdict?, features: Set<FeatureTag>, version: Int) {
+        let (destination, source) = autoDestination(for: verdict)
+        update([id]) { $0.applyAutoPlacement(folderID: destination, source: source, features: features, version: version) }
+    }
+
+    /// Where a verdict sends a screenshot; a verdict for a missing folder counts as no answer.
+    internal func autoDestination(for verdict: ClassifierVerdict?) -> (folderID: UUID?, source: ClassifierSource?) {
         let destination = verdict.flatMap { self.folderID(for: $0.target) }
-        let source = destination == nil ? nil : verdict?.source
-        update([id]) { shot in
-            guard shot.isProcessing else { return }
-            shot.folderID = destination
-            shot.placement = .auto(AutoPlacement(source: source, classifierVersion: version))
-            shot.featureTags = features.subtracting(shot.dismissedFeatureTags)
-        }
+        return (destination, destination == nil ? nil : verdict?.source)
     }
 
     /// Automatic screenshots still in 未分類 that have text and no refinement pass yet.
@@ -80,5 +81,16 @@ public extension Library {
         case let .folder(id):
             return folder(id)?.id
         }
+    }
+}
+
+public extension ClassifierInput {
+    /// Input built from recognition output, e.g. fresh results not yet written back to the library.
+    init(blocks: [TextBlock], barcodes: [String], excluded: Set<ClassificationTarget>) {
+        self.init(
+            text: Shot.joinedText(blocks),
+            signals: SignalExtractor.extract(blocks: blocks, barcodes: barcodes),
+            excluded: excluded
+        )
     }
 }

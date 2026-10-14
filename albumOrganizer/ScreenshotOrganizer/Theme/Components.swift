@@ -8,6 +8,23 @@ struct Hairline: View {
     }
 }
 
+/// A thin accent bar filled to `fraction` (0…1) over a neutral track.
+struct ProgressLine: View {
+    let fraction: Double
+    var height: CGFloat = 4
+
+    var body: some View {
+        GeometryReader { geo in
+            Rectangle().fill(Palette.neutral300)
+                .overlay(alignment: .leading) {
+                    Rectangle().fill(Palette.accent).frame(width: geo.size.width * min(max(fraction, 0), 1))
+                }
+        }
+        .frame(height: height)
+        .animation(.linear(duration: 0.2), value: fraction)
+    }
+}
+
 /// The small tracked label above titles and sections (12pt, 0.06em, neutral-700).
 struct Kicker: View {
     var text: String

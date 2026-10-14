@@ -60,6 +60,12 @@ final class UIState {
         endSelecting()
     }
 
+    /// Opens 處理中 under the 資料夾 tab, e.g. from the processing bar.
+    func showProcessing() {
+        selectTab(.folders)
+        folderPath = [.processing]
+    }
+
     func endSelecting() {
         selecting = false
         selection = []

@@ -4,6 +4,7 @@ import UIKit
 
 /// Tabs, the batch-selection bar, the sliding detail page, sheets and dialogs.
 struct AppShell: View {
+    @Environment(LibraryStore.self) private var store
     @Environment(UIState.self) private var ui
 
     var body: some View {
@@ -33,10 +34,12 @@ struct AppShell: View {
                 if ui.selecting {
                     BatchBar()
                 } else {
+                    ProcessingBar()
                     TabBar()
                 }
             }
             .background(Palette.bg)
+            .animation(.easeOut(duration: 0.25), value: store.processingProgress.isVisible)
 
             if ui.detail != nil {
                 ShotDetailScreen()

@@ -140,6 +140,10 @@ public struct Shot: Codable, Hashable, Identifiable, Sendable {
     }
 
     public var allText: String {
+        Shot.joinedText(blocks)
+    }
+
+    static func joinedText(_ blocks: [TextBlock]) -> String {
         blocks.map(\.text).joined(separator: "\n")
     }
 
@@ -163,6 +167,30 @@ public struct Shot: Codable, Hashable, Identifiable, Sendable {
 
     static func looksLikeClock(_ s: String) -> Bool {
         s.range(of: #"^\d{1,2}:\d{2}$"#, options: .regularExpression) != nil
+    }
+}
+
+// MARK: - Processing rules
+
+extension Shot {
+    /// `nil` blocks record a failed attempt. Classification happens separately.
+    mutating func recordRecognition(blocks: [TextBlock]?, barcodes: [String]) {
+        guard let blocks else {
+            recognition = .failed
+            recognitionAttempts += 1
+            return
+        }
+        self.blocks = blocks
+        self.barcodes = barcodes
+        recognition = .done
+    }
+
+    /// Ignored unless still processing, so a manual move always wins over a classification already running.
+    mutating func applyAutoPlacement(folderID: UUID?, source: ClassifierSource?, features: Set<FeatureTag>, version: Int) {
+        guard isProcessing else { return }
+        self.folderID = folderID
+        placement = .auto(AutoPlacement(source: source, classifierVersion: version))
+        featureTags = features.subtracting(dismissedFeatureTags)
     }
 }
 
