@@ -42,6 +42,7 @@ final class LibraryStore {
     @ObservationIgnored private var processor: ScreenshotProcessor!
     @ObservationIgnored private let learning: LearnedModelUpdater
     @ObservationIgnored private var clearProgressTask: Task<Void, Never>?
+    @ObservationIgnored private let continuedProcessing: ContinuedProcessingService
 
     private static let onboardedKey = "didFinishOnboarding"
     /// How long a finished run's summary stays in the bar.
@@ -53,13 +54,15 @@ final class LibraryStore {
         refinement: ClassificationPipeline? = .appleIntelligence,
         learnedModels: LearnedModelStore = LearnedModelUpdater.defaultStore,
         persistence: any LibraryPersisting = LibraryStore.defaultPersistence,
-        backup: BackupService? = nil
+        backup: BackupService? = nil,
+        continuedProcessing: ContinuedProcessingService = ContinuedProcessingService()
     ) {
         let onboarded = UserDefaults.standard.bool(forKey: Self.onboardedKey)
         self.backup = backup ?? BackupService(photos: photos, isOnboarded: onboarded)
         self.photos = photos
         learning = LearnedModelUpdater(store: learnedModels)
         self.persistence = persistence
+        self.continuedProcessing = continuedProcessing
         let stored = Self.loadLibrary(from: persistence)
         var library = stored.library
         library.requeueOutdated(version: ClassificationPipeline.version)
@@ -76,8 +79,11 @@ final class LibraryStore {
             mutate: { [unowned self] body in self.mutate(body) }
         )
         processor.onRunStarted = { [unowned self] in beginProcessingRun() }
-        processor.onBatchApplied = { [unowned self] in processingProgress.record($0, processingCount: processingCount) }
+        processor.onBatchApplied = { [unowned self] tally in
+            updateProgress { $0.record(tally, processingCount: processingCount) }
+        }
         processor.onRunFinished = { [unowned self] in finishProcessingRun() }
+        continuedProcessing.onExpired = { [unowned self] in await pauseForExpiredContinuedProcessing() }
         learning.onModelChanged = { [unowned self] in
             mutate { $0.requeueUnsortedAutomatic() }
             processor.start()
@@ -161,6 +167,7 @@ final class LibraryStore {
         mutate { $0.sync(with: assets) }
         importFoundCount = library.shots.count
         startSyncing(syncFirst: false)
+        continueInBackground()
     }
 
     func finishImport() {
@@ -186,6 +193,7 @@ final class LibraryStore {
         let photos = photos
         let assets = await Task.detached(priority: .userInitiated) { photos.fetchScreenshots() }.value
         apply(assets)
+        continueInBackground()
     }
 
     private func apply(_ assets: [AssetInfo]) {
@@ -254,19 +262,46 @@ final class LibraryStore {
 
     private func beginProcessingRun() {
         clearProgressTask?.cancel()
-        processingProgress.begin(processingCount: processingCount)
+        updateProgress { $0.begin(processingCount: processingCount) }
     }
 
     /// A run big enough to show the bar leaves its summary up briefly before the bar goes away.
     private func finishProcessingRun() {
         if phase == .importing { isImportProcessed = true }
-        processingProgress.finish()
+        updateProgress { $0.finish() }
+        continuedProcessing.finish()
         guard case .finished = processingProgress.phase else { return }
         clearProgressTask = Task {
             try? await Task.sleep(for: Self.summaryDuration)
             guard !Task.isCancelled else { return }
             processingProgress.clear()
         }
+    }
+
+    /// Every change to the run's counts also reaches the system's progress UI, when the run continues there.
+    private func updateProgress(_ body: (inout ProcessingProgress) -> Void) {
+        body(&processingProgress)
+        continuedProcessing.report(ContinuedProcessingStatus(progress: processingProgress))
+    }
+
+    /// From something the person did while the app is on screen: a large run keeps going after they leave.
+    func continueInBackground() {
+        guard processingProgress.isWorthContinuing(processingCount: processingCount) else { return }
+        let status = processingProgress.isRunning ? ContinuedProcessingStatus(progress: processingProgress) : .preparing
+        continuedProcessing.submit(status)
+    }
+
+    /// Back on screen: carries on a run the system stopped in the background, with its counts intact.
+    func resumeProcessing() {
+        processor.resume()
+    }
+
+    /// The system ended the background task: results in flight are written back and saved before the app is
+    /// suspended. If the app is still on screen, processing carries on right away.
+    private func pauseForExpiredContinuedProcessing() async {
+        await processor.pause()
+        saveNow()
+        if UIApplication.shared.applicationState == .active { processor.resume() }
     }
 
     var processingCount: Int {
@@ -293,7 +328,7 @@ final class LibraryStore {
     func mutate(_ body: (inout Library) -> Void) {
         body(&library)
         if processingProgress.isRunning {
-            processingProgress.updateRemaining(processingCount: processingCount)
+            updateProgress { $0.updateRemaining(processingCount: processingCount) }
         }
         scheduleSave()
     }

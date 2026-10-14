@@ -72,4 +72,19 @@ final class ProcessingProgressTests: XCTestCase {
         XCTAssertEqual(progress.processed, 0)
         XCTAssertFalse(progress.isVisible)
     }
+
+    func testOnlyLargeRunsAreWorthContinuing() {
+        var progress = ProcessingProgress()
+        XCTAssertFalse(progress.isWorthContinuing(processingCount: 19), "before the run begins, the queue's size decides")
+        XCTAssertTrue(progress.isWorthContinuing(processingCount: 20))
+
+        progress.begin(processingCount: 5)
+        XCTAssertFalse(progress.isWorthContinuing(processingCount: 5))
+        progress.updateRemaining(processingCount: 30)
+        XCTAssertTrue(progress.isWorthContinuing(processingCount: 30))
+
+        progress.record(ProcessingTally(processed: 30), processingCount: 0)
+        progress.finish()
+        XCTAssertFalse(progress.isWorthContinuing(processingCount: 0), "a finished run has nothing left to continue")
+    }
 }

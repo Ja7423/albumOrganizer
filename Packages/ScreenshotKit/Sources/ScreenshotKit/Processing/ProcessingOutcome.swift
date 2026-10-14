@@ -102,3 +102,11 @@ private extension ProcessingTally {
         )
     }
 }
+
+public extension ProcessingTally {
+    /// A finished run's counts, as the progress bar and the system's progress UI show them.
+    var summary: String {
+        let placed = "已分類 \(classified.formatted()) 張，未分類 \(unsorted.formatted()) 張"
+        return failed > 0 ? "\(placed)（\(failed.formatted()) 張稍後重試）" : placed
+    }
+}

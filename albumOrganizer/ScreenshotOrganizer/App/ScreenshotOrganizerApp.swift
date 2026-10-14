@@ -19,7 +19,9 @@ struct ScreenshotOrganizerApp: App {
             case .background:
                 store.saveNow()
                 store.backUp()
-            case .active: if store.phase == .app { store.syncWithPhotos() }
+            case .active:
+                store.resumeProcessing()
+                if store.phase == .app { store.syncWithPhotos() }
             default: break
             }
         }
