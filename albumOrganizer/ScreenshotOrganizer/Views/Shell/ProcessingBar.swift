@@ -10,7 +10,10 @@ struct ProcessingBar: View {
     var body: some View {
         let progress = store.processingProgress
         if progress.isVisible {
-            Button { ui.showProcessing() } label: {
+            Button {
+                store.continueInBackground()
+                ui.showProcessing()
+            } label: {
                 VStack(alignment: .leading, spacing: 8) {
                     switch progress.phase {
                     case let .finished(tally): FinishedContent(tally: tally)
@@ -53,18 +56,13 @@ private struct RunningContent: View {
 private struct FinishedContent: View {
     let tally: ProcessingTally
 
-    private var summary: String {
-        let placed = "已分類 \(tally.classified.formatted()) 張，未分類 \(tally.unsorted.formatted()) 張"
-        return tally.failed > 0 ? "\(placed)（\(tally.failed.formatted()) 張稍後重試）" : placed
-    }
-
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: "checkmark.circle")
                 .foregroundStyle(Palette.accent)
             VStack(alignment: .leading, spacing: 2) {
                 Text("整理完成").font(Typeface.body(14, .semibold))
-                Text(summary)
+                Text(tally.summary)
                     .font(Typeface.body(13))
                     .foregroundStyle(Palette.neutral700)
             }

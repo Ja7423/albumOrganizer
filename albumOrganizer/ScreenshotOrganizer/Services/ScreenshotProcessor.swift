@@ -31,6 +31,13 @@ final class ScreenshotProcessor {
     private var needsRefill = false
     /// Set when the refinement layer can't answer right now; the next run tries again.
     private var isRefinementPaused = false
+    /// Between `pause()` and `resume()`: no new screenshots start and no run begins.
+    private var isPaused = false
+    /// A run that `pause()` stopped part-way; `resume()` carries it on instead of beginning a new one.
+    private var hasPausedRun = false
+    /// While `pause()` waits for the screenshots in flight. Resuming then would let the run go on and keep
+    /// `pause()` waiting until it ends, so the caller resumes once `pause()` returns instead.
+    private var isPausing = false
 
     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "albumOrganizer", category: "classification")
 
@@ -60,6 +67,7 @@ final class ScreenshotProcessor {
     /// Starts working through the queue; mid-run, picks up screenshots added since the run began.
     /// Failed recognitions wait for the next run rather than retrying in a tight loop.
     func start() {
+        guard !isPaused else { return }
         guard task == nil else {
             needsRefill = true
             return
@@ -67,6 +75,23 @@ final class ScreenshotProcessor {
         queue = ProcessingQueue(library: library())
         isRefinementPaused = false
         task = Task { [weak self] in await self?.run() }
+    }
+
+    /// Stops starting new screenshots, waits for the ones in flight and writes their results back.
+    /// The run stays open, so its progress carries on after `resume()`.
+    func pause() async {
+        isPaused = true
+        isPausing = true
+        await task?.value
+        isPausing = false
+    }
+
+    /// Carries on the run `pause()` stopped, picking up screenshots added meanwhile. Ignored while `pause()`
+    /// is still waiting.
+    func resume() {
+        guard isPaused, !isPausing else { return }
+        isPaused = false
+        start()
     }
 
     /// Moves a screenshot to the front of the queue (e.g. when its detail page opens).
@@ -81,8 +106,12 @@ final class ScreenshotProcessor {
 
     private func run() async {
         repeat {
-            onRunStarted()
+            if hasPausedRun { hasPausedRun = false } else { onRunStarted() }
             await processQueue()
+            if isPaused {
+                hasPausedRun = true
+                break
+            }
             onRunFinished()
         } while await refineUntilNewWork()
         queue = nil
@@ -112,7 +141,7 @@ final class ScreenshotProcessor {
     /// Starts up to `slots` new screenshots; returns how many it started.
     private func addWork(to group: inout TaskGroup<ProcessingOutcome?>, upTo slots: Int) -> Int {
         refillIfNeeded()
-        guard slots > 0 else { return 0 }
+        guard slots > 0, !isPaused else { return 0 }
         let excluded = library().excludedTargets
         var added = 0
         while added < slots, let work = queue?.next() {
@@ -145,7 +174,7 @@ final class ScreenshotProcessor {
     /// so the caller starts another run first.
     private func refineUntilNewWork() async -> Bool {
         guard let refinement else { return false }
-        while !isRefinementPaused {
+        while !isRefinementPaused, !isPaused {
             refillIfNeeded()
             if queue?.isEmpty == false { return true }
             guard let id = library().pendingRefinementIDs.first,

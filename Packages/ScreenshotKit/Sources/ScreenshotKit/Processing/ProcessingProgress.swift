@@ -38,6 +38,16 @@ public struct ProcessingProgress: Equatable, Sendable {
         phase == .running
     }
 
+    /// A run big enough to show the bar is worth keeping alive once the app leaves the screen.
+    /// Before the run begins, `processingCount` (the library's 處理中 count) stands in for its size.
+    public func isWorthContinuing(processingCount: Int) -> Bool {
+        switch phase {
+        case .running: isVisible
+        case .idle: processingCount >= Self.visibilityThreshold
+        case .finished: false
+        }
+    }
+
     /// `processingCount` is the library's 處理中 count.
     public mutating func begin(processingCount: Int) {
         self = ProcessingProgress()
