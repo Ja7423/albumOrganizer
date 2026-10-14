@@ -17,6 +17,12 @@ public extension Library {
         shots.filter { $0.isProcessing && !$0.needsRecognition }.map(\.id)
     }
 
+    /// Screenshots the processor still has work for: recognition to do or retry, or a classifier pass.
+    /// Larger than the 處理中 count after a restore, whose placements come back without recognized text.
+    var processingWorkCount: Int {
+        shots.count { $0.needsRecognition || $0.isProcessing }
+    }
+
     var classificationSummary: ClassificationSummary {
         let placed = shots.filter { !$0.isProcessing }
         let unsorted = placed.filter { $0.folderID == nil }.count

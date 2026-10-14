@@ -80,7 +80,7 @@ final class LibraryStore {
         )
         processor.onRunStarted = { [unowned self] in beginProcessingRun() }
         processor.onBatchApplied = { [unowned self] tally in
-            updateProgress { $0.record(tally, processingCount: processingCount) }
+            updateProgress { $0.record(tally, workCount: library.processingWorkCount) }
         }
         processor.onRunFinished = { [unowned self] in finishProcessingRun() }
         continuedProcessing.onExpired = { [unowned self] in await pauseForExpiredContinuedProcessing() }
@@ -262,7 +262,7 @@ final class LibraryStore {
 
     private func beginProcessingRun() {
         clearProgressTask?.cancel()
-        updateProgress { $0.begin(processingCount: processingCount) }
+        updateProgress { $0.begin(workCount: library.processingWorkCount) }
     }
 
     /// A run big enough to show the bar leaves its summary up briefly before the bar goes away.
@@ -286,7 +286,7 @@ final class LibraryStore {
 
     /// From something the person did while the app is on screen: a large run keeps going after they leave.
     func continueInBackground() {
-        guard processingProgress.isWorthContinuing(processingCount: processingCount) else { return }
+        guard processingProgress.isWorthContinuing(workCount: library.processingWorkCount) else { return }
         let status = processingProgress.isRunning ? ContinuedProcessingStatus(progress: processingProgress) : .preparing
         continuedProcessing.submit(status)
     }
@@ -328,7 +328,7 @@ final class LibraryStore {
     func mutate(_ body: (inout Library) -> Void) {
         body(&library)
         if processingProgress.isRunning {
-            updateProgress { $0.updateRemaining(processingCount: processingCount) }
+            updateProgress { $0.updateRemaining(workCount: library.processingWorkCount) }
         }
         scheduleSave()
     }

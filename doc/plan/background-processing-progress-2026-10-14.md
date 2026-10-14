@@ -48,7 +48,7 @@
 | D8 | 進度列內容 | 細進度條加上「正在整理截圖 X / Y」；點擊後切到「資料夾」tab，打開「處理中」 | 預估時間前幾十張不準（Q8） |
 | D9 | 完成後 | 顯示「整理完成：已分類 X 張，未分類 Y 張」，有失敗時加「N 張稍後重試」；約 3 秒後消失 | Q9、Q11 |
 | D10 | 分母 | 本輪已處理數＋還沒處理的數量。新截圖進來時變大，隱藏時變小，本輪結束後歸零 | 數字跟「處理中」實際張數一致（Q10） |
-| D11 | 失敗的截圖 | 算作本輪已處理，但不從「處理中」移走。分母裡的「還沒處理」＝處理中張數－本輪失敗張數 | 重試要等下一輪，不算的話進度會卡住（Q11） |
+| D11 | 失敗的截圖 | 算作本輪已處理，但不從「處理中」移走。分母裡的「還沒處理」＝~~處理中張數~~ **`Library.processingWorkCount`（需要辨識或分類的張數，v4 修正）**－本輪失敗張數 | 重試要等下一輪，不算的話進度會卡住（Q11） |
 | D12 | 完成判定 | 本輪已經沒有可以做的 OCR 或分類工作就算完成，等重試的截圖不擋完成 | 跟現在 `onIdle` 的觸發時機相同（Q17） |
 | D13 | 重試機制 | 維持現況：下一輪再試，最多 3 次（`Shot.maxRecognitionAttempts`） | Q18 |
 | D14 | 進度模型 | 匯入畫面和 App 共用 `LibraryStore.processingProgress`，取代 `ImportProgress`。匯入畫面自己多顯示「掃描」那一步 | 只有一個資料來源，切換畫面時數字能接上（Q12） |
@@ -425,3 +425,4 @@ extension View { func keepsScreenAwake() -> some View }
 | v1 | 2026-10-14 | 初版 |
 | v2 | 2026-10-14 | 實作時的調整：①`ProcessingQueue.Work` 帶上 worker 需要的資料（是否最後一次重試、已有的文字），worker 不必再查 `Library`；`classifierInput(blocks:barcodes:)` 改成 `ClassifierInput(blocks:barcodes:excluded:)` 加上 `Library.excludedTargets`。②`applyProcessingOutcomes` 回傳 `ProcessingTally`（已處理、失敗、已分類、未分類），完成摘要用本輪的數字，不再用整個 library 的 `classificationSummary`，也就不需要 `ProcessingSummary`。③processor 多一個 `onRunStarted` callback。④匯入畫面的步驟從三列改成兩列（「掃描」、「辨識文字並自動分類」），因為兩者是同一張截圖一起完成的，原本 600ms 的假延遲拿掉。⑤`ProgressLine` 放在 `Theme/Components.swift` |
 | v3 | 2026-10-15 | 依實機量測與 OCR benchmark：速度目標改為約 33 分鐘搭配下一階段的背景處理（D5），worker 從 3 降到 2（D15），補上量測紀錄 |
+| v4 | 2026-10-15 | 修正：從 iCloud 還原的截圖已有分類但沒有 OCR 文字，仍要辨識，卻不在「處理中」裡，造成進度分母漏算、進度列中途才出現。分母改用 `processingWorkCount`；完成摘要只計入這一輪實際放進資料夾的截圖 |

@@ -15,7 +15,7 @@ public struct ProcessingProgress: Equatable, Sendable {
 
     public private(set) var phase: Phase = .idle
     public private(set) var tally = ProcessingTally()
-    /// In 處理中 and not yet looked at this run.
+    /// Still to do and not yet looked at this run.
     public private(set) var remaining = 0
     /// Set once the run reaches the threshold; kept until the run ends so the bar never flickers away.
     public private(set) var isVisible = false
@@ -39,31 +39,31 @@ public struct ProcessingProgress: Equatable, Sendable {
     }
 
     /// A run big enough to show the bar is worth keeping alive once the app leaves the screen.
-    /// Before the run begins, `processingCount` (the library's 處理中 count) stands in for its size.
-    public func isWorthContinuing(processingCount: Int) -> Bool {
+    /// Before the run begins, `workCount` (`Library.processingWorkCount`) stands in for its size.
+    public func isWorthContinuing(workCount: Int) -> Bool {
         switch phase {
         case .running: isVisible
-        case .idle: processingCount >= Self.visibilityThreshold
+        case .idle: workCount >= Self.visibilityThreshold
         case .finished: false
         }
     }
 
-    /// `processingCount` is the library's 處理中 count.
-    public mutating func begin(processingCount: Int) {
+    /// `workCount` is `Library.processingWorkCount`: everything the processor still has to do.
+    public mutating func begin(workCount: Int) {
         self = ProcessingProgress()
         phase = .running
-        updateRemaining(processingCount: processingCount)
+        updateRemaining(workCount: workCount)
     }
 
-    public mutating func record(_ batch: ProcessingTally, processingCount: Int) {
+    public mutating func record(_ batch: ProcessingTally, workCount: Int) {
         tally = tally + batch
-        updateRemaining(processingCount: processingCount)
+        updateRemaining(workCount: workCount)
     }
 
-    /// Screenshots were added or hidden mid-run. Failed ones stay in 處理中 but are already counted as processed.
-    public mutating func updateRemaining(processingCount: Int) {
+    /// Screenshots were added or hidden mid-run. Failed ones still need recognition but are already counted as processed.
+    public mutating func updateRemaining(workCount: Int) {
         guard isRunning else { return }
-        remaining = max(0, processingCount - tally.failed)
+        remaining = max(0, workCount - tally.failed)
         if total >= Self.visibilityThreshold { isVisible = true }
     }
 

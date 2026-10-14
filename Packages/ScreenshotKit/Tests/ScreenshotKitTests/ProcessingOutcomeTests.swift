@@ -101,3 +101,61 @@ final class ProcessingOutcomeTests: XCTestCase {
         XCTAssertEqual(input.excluded, [.builtIn(.receipt)])
     }
 }
+
+/// Screenshots restored from a backup keep their places but come back without recognized text.
+final class RestoredShotProcessingTests: XCTestCase {
+    private func shot(_ id: String, _ placement: Placement, folderID: UUID? = nil) -> Shot {
+        Shot(id: id, createdAt: Date(timeIntervalSince1970: 1_000_000), pixelWidth: 1179, pixelHeight: 2556, folderID: folderID, placement: placement)
+    }
+
+    private func restoredLibrary() -> Library {
+        var lib = Library()
+        let receipts = lib.folders.first { $0.builtIn == .receipt }!.id
+        lib = Library(
+            shots: [
+                shot("user", .user, folderID: receipts),
+                shot("auto", .auto(AutoPlacement(source: .rule, classifierVersion: ClassificationPipeline.version)), folderID: receipts),
+                shot("new", .pending),
+            ],
+            folders: lib.folders
+        )
+        return lib
+    }
+
+    func testWorkCountIncludesRestoredShotsAwaitingRecognition() {
+        let lib = restoredLibrary()
+        XCTAssertEqual(lib.count(in: .processing), 1, "only the new screenshot shows under 處理中")
+        XCTAssertEqual(lib.processingWorkCount, 3, "all three still need recognition")
+    }
+
+    func testRestoredPlacementsAreNotCountedAsNewlyClassified() {
+        var lib = restoredLibrary()
+        let outcomes = ["user", "auto", "new"].map {
+            ProcessingOutcome(id: $0, recognition: .recognized(blocks: [], barcodes: []), classification: .init(verdict: nil, features: []))
+        }
+        let tally = lib.applyProcessingOutcomes(outcomes, version: ClassificationPipeline.version)
+        XCTAssertEqual(tally, ProcessingTally(processed: 3, failed: 0, classified: 0, unsorted: 1))
+        XCTAssertEqual(lib.processingWorkCount, 0)
+    }
+
+    func testFailedRestoredShotWaitsForRetry() {
+        var lib = restoredLibrary()
+        let tally = lib.applyProcessingOutcomes([ProcessingOutcome(id: "user", recognition: .failed, classification: nil)], version: 1)
+        XCTAssertEqual(tally.failed, 1, "it still needs recognition, so it is retried next run")
+        XCTAssertEqual(lib.processingWorkCount, 3)
+    }
+
+    func testProgressTotalStaysPutWhileRestoredShotsAreProcessed() {
+        var lib = restoredLibrary()
+        var progress = ProcessingProgress()
+        progress.begin(workCount: lib.processingWorkCount)
+        XCTAssertEqual(progress.total, 3)
+        let tally = lib.applyProcessingOutcomes(
+            [ProcessingOutcome(id: "user", recognition: .recognized(blocks: [], barcodes: []), classification: .init(verdict: nil, features: []))],
+            version: ClassificationPipeline.version
+        )
+        progress.record(tally, workCount: lib.processingWorkCount)
+        XCTAssertEqual(progress.processed, 1)
+        XCTAssertEqual(progress.total, 3)
+    }
+}

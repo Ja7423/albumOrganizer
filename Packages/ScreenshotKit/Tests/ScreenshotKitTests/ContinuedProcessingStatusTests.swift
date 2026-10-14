@@ -4,8 +4,8 @@ import XCTest
 final class ContinuedProcessingStatusTests: XCTestCase {
     func testRunningShowsTheBarsCounts() {
         var progress = ProcessingProgress()
-        progress.begin(processingCount: 50)
-        progress.record(ProcessingTally(processed: 12, classified: 12), processingCount: 38)
+        progress.begin(workCount: 50)
+        progress.record(ProcessingTally(processed: 12, classified: 12), workCount: 38)
 
         let status = ContinuedProcessingStatus(progress: progress)
         XCTAssertEqual(status.title, "正在整理截圖")
@@ -16,8 +16,8 @@ final class ContinuedProcessingStatusTests: XCTestCase {
 
     func testFinishedShowsTheSummaryAtFullProgress() {
         var progress = ProcessingProgress()
-        progress.begin(processingCount: 30)
-        progress.record(ProcessingTally(processed: 30, classified: 20, unsorted: 10), processingCount: 0)
+        progress.begin(workCount: 30)
+        progress.record(ProcessingTally(processed: 30, classified: 20, unsorted: 10), workCount: 0)
         progress.finish()
 
         let status = ContinuedProcessingStatus(progress: progress)

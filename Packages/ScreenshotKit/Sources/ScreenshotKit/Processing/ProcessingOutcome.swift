@@ -70,11 +70,12 @@ public extension Library {
         var tally = ProcessingTally()
         update(Array(byID.keys)) { shot in
             guard let outcome = byID[shot.id] else { return }
+            let wasProcessing = shot.isProcessing
             shot.recordRecognition(outcome.recognition)
             if let classification = outcome.classification, let destination = destinations[shot.id] {
                 shot.applyAutoPlacement(folderID: destination.folderID, source: destination.source, features: classification.features, version: version)
             }
-            tally = tally + ProcessingTally(shot: shot, outcome: outcome)
+            tally = tally + ProcessingTally(shot: shot, outcome: outcome, wasProcessing: wasProcessing)
         }
         return tally
     }
@@ -91,12 +92,13 @@ extension Shot {
 }
 
 private extension ProcessingTally {
-    /// One screenshot's contribution, read after its outcome was applied.
-    init(shot: Shot, outcome: ProcessingOutcome) {
-        let isAutoPlaced = shot.autoPlacement != nil && outcome.classification != nil
+    /// One screenshot's contribution, read after its outcome was applied. Only screenshots this outcome
+    /// placed count as classified or unsorted; restored or user placements only had their text recognized.
+    init(shot: Shot, outcome: ProcessingOutcome, wasProcessing: Bool) {
+        let isAutoPlaced = wasProcessing && shot.autoPlacement != nil
         self.init(
             processed: 1,
-            failed: outcome.recognition == .failed && shot.isProcessing ? 1 : 0,
+            failed: outcome.recognition == .failed && shot.needsRecognition ? 1 : 0,
             classified: isAutoPlaced && shot.folderID != nil ? 1 : 0,
             unsorted: isAutoPlaced && shot.folderID == nil ? 1 : 0
         )
