@@ -64,9 +64,9 @@ final class LibraryStore {
         self.persistence = persistence
         self.continuedProcessing = continuedProcessing
         let stored = Self.loadLibrary(from: persistence)
-        var library = stored.library
-        library.requeueOutdated(version: ClassificationPipeline.version)
-        self.library = library
+        var loaded = stored.library
+        loaded.requeueOutdated(version: ClassificationPipeline.version)
+        library = loaded
         lastSaved = stored.library
         isSavingDisabled = !stored.canSave
         phase = onboarded && photos.hasAccess ? .app : .welcome
