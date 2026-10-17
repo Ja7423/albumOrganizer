@@ -4,9 +4,18 @@
 #   BUILD_NUMBER=42   指定 build number（build / beta）
 #   WAIT=true         上傳後等 App Store Connect 處理完成（beta / upload）
 #   IPA=path/to.ipa   指定要上傳的 ipa（upload）
-#   VERSION=1.0.1:12  版本號:build number，build number 可省略（version）
+#   VERSION=1.0.1     版本號（set-version，也可直接寫 make set-version 1.0.1）
 
 FASTLANE := bundle exec fastlane ios
+
+# make set-version 1.0.1：把第二個 goal 當成 VERSION，並宣告成空 target，避免 make 把它當成要建置的目標
+ifeq (set-version,$(firstword $(MAKECMDGOALS)))
+  SET_VERSION_ARG := $(word 2,$(MAKECMDGOALS))
+  ifneq ($(SET_VERSION_ARG),)
+    VERSION := $(SET_VERSION_ARG)
+    $(eval $(SET_VERSION_ARG):;@:)
+  endif
+endif
 
 # 只把有設定的參數傳給 fastlane
 LANE_OPTS := $(if $(BUILD_NUMBER),build_number:$(BUILD_NUMBER)) \
@@ -15,7 +24,7 @@ LANE_OPTS := $(if $(BUILD_NUMBER),build_number:$(BUILD_NUMBER)) \
              $(if $(VERSION),version:$(VERSION))
 
 .DEFAULT_GOAL := help
-.PHONY: help install version certs certs-appstore certs-fetch certs-init build beta upload lanes
+.PHONY: help install set-version certs certs-appstore certs-fetch certs-init build beta upload lanes
 
 help: ## 列出可用指令
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -24,7 +33,7 @@ help: ## 列出可用指令
 install: ## 安裝 Gemfile 裡的 gem（fastlane）
 	bundle install
 
-version: ## 修改版本號與 build number（VERSION=1.0.1:12）
+set-version: ## 修改版本號（make set-version 1.0.1 或 VERSION=1.0.1）
 	$(FASTLANE) set_version $(LANE_OPTS)
 
 certs: ## 下載開發用憑證與 profile（唯讀）

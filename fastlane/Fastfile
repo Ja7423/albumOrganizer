@@ -61,21 +61,19 @@ platform :ios do
     match(type: "appstore", readonly: false)
   end
 
-  desc "修改 app 的版本號與 build number，寫入 project.pbxproj"
-  desc "用法：fastlane ios set_version version:1.0.1:12（只改版本號：version:1.0.1）"
+  desc "修改 app 的版本號，寫入 project.pbxproj"
+  desc "用法：fastlane ios set_version version:1.0.1"
+  desc "build number 不寫入專案檔：build_appstore 編譯時會由 asc 查下一號（或用 build_number: 指定）並覆蓋"
   lane :set_version do |options|
-    marketing_version, build_number = parse_version_option(options[:version])
+    marketing_version = parse_version_option(options[:version])
 
     # 直接替換文字，而不是透過 xcodeproj gem 存檔：gem 會重寫其他物件的註解，diff 會混入無關變更。
     # 所有 target（含未來的 App Extension）一起更新，Apple 要求 extension 的版本號與主 app 一致。
     content = File.read(PBXPROJ)
     UI.user_error!("project.pbxproj 裡找不到 MARKETING_VERSION") unless content.include?("MARKETING_VERSION = ")
 
-    content = content.gsub(/MARKETING_VERSION = [^;]+;/, "MARKETING_VERSION = #{marketing_version};")
-    content = content.gsub(/CURRENT_PROJECT_VERSION = [^;]+;/, "CURRENT_PROJECT_VERSION = #{build_number};") if build_number
-    File.write(PBXPROJ, content)
-
-    UI.success("版本號 → #{marketing_version}" + (build_number ? "，build number → #{build_number}" : ""))
+    File.write(PBXPROJ, content.gsub(/MARKETING_VERSION = [^;]+;/, "MARKETING_VERSION = #{marketing_version};"))
+    UI.success("版本號 → #{marketing_version}")
   end
 
   desc "編譯 App Store 版本的 ipa，輸出到 build/"
@@ -147,17 +145,15 @@ platform :ios do
   end
 end
 
-# 把 "1.0.1:12" 拆成 ["1.0.1", "12"]，"1.0.1" 拆成 ["1.0.1", nil]。
-# Apple 規定兩者都是最多三段、以 . 分隔的整數。
+# 驗證並回傳版本號。Apple 規定最多三段、以 . 分隔的整數。
 def parse_version_option(value)
-  UI.user_error!("請指定版本，例如 version:1.0.1:12") if value.to_s.empty?
+  UI.user_error!("請指定版本，例如 version:1.0.1") if value.to_s.empty?
+  if value.to_s.include?(":")
+    UI.user_error!("set_version 只修改版本號，build number 由 build_appstore 編譯時決定（BUILD_NUMBER= 或 asc 查下一號）")
+  end
+  UI.user_error!("版本號格式錯誤：#{value}（例如 1.0.1）") unless value.to_s =~ /\A\d+(\.\d+){0,2}\z/
 
-  marketing_version, build_number = value.to_s.split(":", 2)
-  format = /\A\d+(\.\d+){0,2}\z/
-  UI.user_error!("版本號格式錯誤：#{marketing_version}（例如 1.0.1）") unless marketing_version =~ format
-  UI.user_error!("build number 格式錯誤：#{build_number}（例如 12）") if build_number && build_number !~ format
-
-  [marketing_version, build_number]
+  value.to_s
 end
 
 # 讀 project.pbxproj 裡的 MARKETING_VERSION（所有 target 一致，取第一個即可）。
