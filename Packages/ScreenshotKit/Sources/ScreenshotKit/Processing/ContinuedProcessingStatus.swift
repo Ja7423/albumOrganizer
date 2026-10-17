@@ -16,12 +16,12 @@ public struct ContinuedProcessingStatus: Equatable, Sendable {
     public init(progress: ProcessingProgress) {
         switch progress.phase {
         case let .finished(tally):
-            self.init(title: "整理完成", subtitle: tally.summary, completed: Int64(progress.processed), total: Int64(progress.processed))
-        case .running, .idle:
+            self.init(title: "整理完成", subtitle: tally.summary, completed: Int64(progress.total), total: Int64(progress.total))
+        case .recognizing, .refining, .idle:
             self.init(
                 title: Self.runningTitle,
-                subtitle: "已完成 \(progress.processed.formatted()) / \(progress.total.formatted()) 張",
-                completed: Int64(progress.processed),
+                subtitle: "已完成 \(progress.completed.formatted()) / \(progress.total.formatted()) 張",
+                completed: Int64(progress.completed),
                 total: Int64(progress.total)
             )
         }

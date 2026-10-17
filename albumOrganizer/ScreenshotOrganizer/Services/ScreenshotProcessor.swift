@@ -20,9 +20,14 @@ final class ScreenshotProcessor {
 
     /// A run starts working through the 處理中 queue.
     var onRunStarted: () -> Void = {}
-    /// After each batch of results is written to the library.
-    var onBatchApplied: (ProcessingTally) -> Void = { _ in }
-    /// The run has no recognition or classification work left, before any refinement.
+    /// After each batch of results is written to the library, with the batch's ids.
+    var onBatchApplied: (ProcessingTally, Set<String>) -> Void = { _, _ in }
+    /// The run has no recognition or classification work left. Passes how many screenshots refinement
+    /// will look at next: 0 when it is off or paused.
+    var onRecognitionFinished: (Int) -> Void = { _ in }
+    /// After refinement looked at a screenshot, and whether it moved it into a folder.
+    var onRefined: (String, Bool) -> Void = { _, _ in }
+    /// The run is over, refinement included.
     var onRunFinished: () -> Void = {}
 
     private var task: Task<Void, Never>?
@@ -112,8 +117,9 @@ final class ScreenshotProcessor {
                 hasPausedRun = true
                 break
             }
-            onRunFinished()
+            onRecognitionFinished(refinement == nil || isRefinementPaused ? 0 : library().pendingRefinementCount)
         } while await refineUntilNewWork()
+        if !hasPausedRun { onRunFinished() }
         queue = nil
         task = nil
     }
@@ -164,7 +170,7 @@ final class ScreenshotProcessor {
         ProcessingSignposts.measure("apply") {
             mutate { tally = $0.applyProcessingOutcomes(outcomes, version: ClassificationPipeline.version) }
         }
-        onBatchApplied(tally)
+        onBatchApplied(tally, Set(outcomes.map(\.id)))
         return tally
     }
 
@@ -181,7 +187,9 @@ final class ScreenshotProcessor {
                   let input = library().classifierInput(for: id) else { return false }
             do {
                 let verdict = try await refinement.classifyOrThrow(input)
-                mutate { $0.applyRefinement(id, verdict: verdict) }
+                var isMoved = false
+                mutate { isMoved = $0.applyRefinement(id, verdict: verdict) }
+                onRefined(id, isMoved)
             } catch {
                 isRefinementPaused = true
                 Self.log.info("Refinement paused until the next run: \(String(describing: error), privacy: .public)")

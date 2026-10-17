@@ -79,8 +79,13 @@ final class LibraryStore {
             mutate: { [unowned self] body in self.mutate(body) }
         )
         processor.onRunStarted = { [unowned self] in beginProcessingRun() }
-        processor.onBatchApplied = { [unowned self] tally in
-            updateProgress { $0.record(tally, workCount: library.processingWorkCount) }
+        processor.onBatchApplied = { [unowned self] tally, ids in
+            let unsortedIDs = library.awaitingRefinement(among: ids)
+            updateProgress { $0.record(tally, unsortedIDs: unsortedIDs, workCount: library.processingWorkCount) }
+        }
+        processor.onRecognitionFinished = { [unowned self] refinementCount in finishRecognition(refinementCount: refinementCount) }
+        processor.onRefined = { [unowned self] id, isMoved in
+            updateProgress { $0.recordRefinement(id, movedToFolder: isMoved, refinementCount: library.pendingRefinementCount) }
         }
         processor.onRunFinished = { [unowned self] in finishProcessingRun() }
         continuedProcessing.onExpired = { [unowned self] in await pauseForExpiredContinuedProcessing() }
@@ -265,11 +270,17 @@ final class LibraryStore {
         updateProgress { $0.begin(workCount: library.processingWorkCount) }
     }
 
+    /// The import is done once its screenshots are recognized and classified; refinement carries on in the
+    /// app. The system's background task ends here too, since refinement can't run there.
+    private func finishRecognition(refinementCount: Int) {
+        if phase == .importing { isImportProcessed = true }
+        updateProgress { $0.finishRecognition(refinementCount: refinementCount) }
+        continuedProcessing.finish()
+    }
+
     /// A run big enough to show the bar leaves its summary up briefly before the bar goes away.
     private func finishProcessingRun() {
-        if phase == .importing { isImportProcessed = true }
         updateProgress { $0.finish() }
-        continuedProcessing.finish()
         guard case .finished = processingProgress.phase else { return }
         clearProgressTask = Task {
             try? await Task.sleep(for: Self.summaryDuration)
@@ -287,7 +298,7 @@ final class LibraryStore {
     /// From something the person did while the app is on screen: a large run keeps going after they leave.
     func continueInBackground() {
         guard processingProgress.isWorthContinuing(workCount: library.processingWorkCount) else { return }
-        let status = processingProgress.isRunning ? ContinuedProcessingStatus(progress: processingProgress) : .preparing
+        let status = processingProgress.isRecognizing ? ContinuedProcessingStatus(progress: processingProgress) : .preparing
         continuedProcessing.submit(status)
     }
 
@@ -324,11 +335,13 @@ final class LibraryStore {
         processor.start()
     }
 
-    /// Screenshots added or hidden mid-run change the progress total along with the library.
+    /// Screenshots added, moved or hidden mid-run change the progress total along with the library.
     func mutate(_ body: (inout Library) -> Void) {
         body(&library)
-        if processingProgress.isRunning {
-            updateProgress { $0.updateRemaining(workCount: library.processingWorkCount) }
+        switch processingProgress.phase {
+        case .recognizing: updateProgress { $0.updateRemaining(workCount: library.processingWorkCount) }
+        case .refining: updateProgress { $0.updateRemaining(refinementCount: library.pendingRefinementCount) }
+        case .idle, .finished: break
         }
         scheduleSave()
     }

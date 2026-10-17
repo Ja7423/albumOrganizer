@@ -99,4 +99,19 @@ final class RefinementTests: XCTestCase {
 
         XCTAssertEqual(lib.pendingRefinementIDs, ["a"])
     }
+
+    func testApplyRefinementReportsWhetherItMovedTheShot() {
+        var lib = library(["a", "b", "mine"])
+        lib.move(["mine"], to: nil)
+        XCTAssertTrue(lib.applyRefinement("a", verdict: llmVerdict(.recipe)))
+        XCTAssertFalse(lib.applyRefinement("b", verdict: nil))
+        XCTAssertFalse(lib.applyRefinement("mine", verdict: llmVerdict(.recipe)), "the user's placement wins")
+    }
+
+    func testAwaitingRefinementPicksTheUnsortedOnesWithText() {
+        var lib = library(["unsorted", "ruled", "mine"], ruled: ["ruled": .code])
+        lib.move(["mine"], to: nil)
+        XCTAssertEqual(lib.awaitingRefinement(among: ["unsorted", "ruled", "mine", "gone"]), ["unsorted"])
+        XCTAssertEqual(lib.pendingRefinementCount, 1)
+    }
 }

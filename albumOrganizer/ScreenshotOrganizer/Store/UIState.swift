@@ -60,10 +60,10 @@ final class UIState {
         endSelecting()
     }
 
-    /// Opens 處理中 under the 資料夾 tab, e.g. from the processing bar.
-    func showProcessing() {
+    /// Opens a grid under the 資料夾 tab, e.g. 處理中 or 未分類 from the processing bar.
+    func showInFolders(_ route: Route) {
         selectTab(.folders)
-        folderPath = [.processing]
+        folderPath = [route]
     }
 
     func endSelecting() {

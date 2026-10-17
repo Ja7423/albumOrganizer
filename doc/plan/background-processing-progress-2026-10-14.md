@@ -60,6 +60,7 @@
 | D20 | 分類在哪裡跑 | 在 worker 裡，OCR 完立刻用這次的 OCR 結果組 `ClassifierInput` 分類；結果和 OCR 一起放進同一筆 `ProcessingOutcome` | 不必等寫回 `Library` 再讀出來分類，一張只要一次寫入。**預設值** |
 | D21 | 工作佇列 | 每輪開始時掃一次 `Library` 建出 `ProcessingQueue`。之後 `start()` 再被呼叫時（Photos 變動等），只把新出現的 id 補進去 | 取代每張都跑一次 `pendingRecognitionIDs`、`shot(id)` 的 O(n) 掃描。**預設值** |
 | D22 | 手動搬移的競態 | worker 拿到結果時，使用者可能已經手動搬移或隱藏這張截圖。合併寫入時沿用 `applyClassification` 的規則：已經不是 processing 就忽略分類結果，id 不在了就整筆略過 | 沿用現有「手動搬移優先」的語意。**預設值** |
+| D23 | Apple Intelligence 再分類的進度（v5） | 一輪分兩個階段：①辨識並分類「處理中」②Apple Intelligence 再看一次留在「未分類」的截圖。進度列依階段顯示各自的 x / y（標題「正在整理截圖」→「正在分類截圖」），完成摘要等第②階段結束才出現，並把被移進資料夾的截圖從「未分類」改算「已分類」（只扣本輪放進未分類的；前幾輪留下的只加到已分類）。第②階段時點進度列開「未分類」。匯入畫面與系統背景任務都在第①階段結束時完成，因為 Apple Intelligence 在背景會被系統限流 | 第②階段一次只跑一張，5000 張時可能有上千張要跑，原本卻沒有任何進度顯示 |
 
 ## 現況分析
 
@@ -426,3 +427,4 @@ extension View { func keepsScreenAwake() -> some View }
 | v2 | 2026-10-14 | 實作時的調整：①`ProcessingQueue.Work` 帶上 worker 需要的資料（是否最後一次重試、已有的文字），worker 不必再查 `Library`；`classifierInput(blocks:barcodes:)` 改成 `ClassifierInput(blocks:barcodes:excluded:)` 加上 `Library.excludedTargets`。②`applyProcessingOutcomes` 回傳 `ProcessingTally`（已處理、失敗、已分類、未分類），完成摘要用本輪的數字，不再用整個 library 的 `classificationSummary`，也就不需要 `ProcessingSummary`。③processor 多一個 `onRunStarted` callback。④匯入畫面的步驟從三列改成兩列（「掃描」、「辨識文字並自動分類」），因為兩者是同一張截圖一起完成的，原本 600ms 的假延遲拿掉。⑤`ProgressLine` 放在 `Theme/Components.swift` |
 | v3 | 2026-10-15 | 依實機量測與 OCR benchmark：速度目標改為約 33 分鐘搭配下一階段的背景處理（D5），worker 從 3 降到 2（D15），補上量測紀錄 |
 | v4 | 2026-10-15 | 修正：從 iCloud 還原的截圖已有分類但沒有 OCR 文字，仍要辨識，卻不在「處理中」裡，造成進度分母漏算、進度列中途才出現。分母改用 `processingWorkCount`；完成摘要只計入這一輪實際放進資料夾的截圖 |
+| v5 | 2026-10-16 | 新增 D23：OCR 與規則分類後，Apple Intelligence 再分類「未分類」的階段也顯示進度列。`ProcessingProgress` 加上 `.refining` 階段，`.running` 改名 `.recognizing`、`processed` 改名 `completed`；processor 多 `onRecognitionFinished`、`onRefined` callback，`onRunFinished` 改成整輪（含再分類）結束才呼叫 |

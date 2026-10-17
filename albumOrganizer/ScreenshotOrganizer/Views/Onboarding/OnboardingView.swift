@@ -222,7 +222,7 @@ private struct ImportStep: View {
             VStack(spacing: 0) {
                 Hairline()
                 StepRow(label: "掃描「螢幕截圖」相簿", done: true, active: false)
-                StepRow(label: done || progress.total == 0 ? "辨識文字並自動分類" : "辨識文字並自動分類（\(progress.processed) / \(progress.total)）",
+                StepRow(label: done || progress.total == 0 ? "辨識文字並自動分類" : "辨識文字並自動分類（\(progress.completed) / \(progress.total)）",
                         done: done, active: !done)
             }
             .padding(.top, 24)

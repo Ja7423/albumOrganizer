@@ -58,19 +58,33 @@ public extension Library {
         shots.filter(\.awaitsRefinement).map(\.id)
     }
 
-    /// Records a refinement result. Ignored unless the screenshot is still automatic and in 未分類,
-    /// so a manual move made meanwhile always wins. A verdict for a deleted built-in counts as no answer.
-    mutating func applyRefinement(_ id: String, verdict: ClassifierVerdict?) {
+    var pendingRefinementCount: Int {
+        shots.count { $0.awaitsRefinement }
+    }
+
+    /// Those of `ids` waiting for the refinement pass; one pass over the screenshots.
+    func awaitingRefinement(among ids: Set<String>) -> Set<String> {
+        Set(shots.lazy.filter { ids.contains($0.id) && $0.awaitsRefinement }.map(\.id))
+    }
+
+    /// Records a refinement result and returns whether it moved the screenshot into a folder. Ignored unless
+    /// the screenshot is still automatic and in 未分類, so a manual move made meanwhile always wins. A verdict
+    /// for a deleted built-in counts as no answer.
+    @discardableResult
+    mutating func applyRefinement(_ id: String, verdict: ClassifierVerdict?) -> Bool {
         let destination = verdict.flatMap { self.folderID(for: $0.target) }
+        var isMoved = false
         update([id]) { shot in
             guard var auto = shot.autoPlacement, shot.folderID == nil else { return }
             auto.isRefined = true
             if let destination, let verdict {
                 shot.folderID = destination
                 auto.source = verdict.source
+                isMoved = true
             }
             shot.placement = .auto(auto)
         }
+        return isMoved
     }
 
     /// Sends automatic placements made by an older classifier back to the queue. User placements stay.

@@ -1,8 +1,8 @@
 import ScreenshotKit
 import SwiftUI
 
-/// Sits above the tab bar while a large processing run is under way, then shows the run's summary briefly.
-/// Tapping it opens 處理中.
+/// Sits above the tab bar while a large processing run is under way, one stage at a time, then shows the run's
+/// summary briefly. Tapping it opens 處理中, or 未分類 while Apple Intelligence works through it.
 struct ProcessingBar: View {
     @Environment(LibraryStore.self) private var store
     @Environment(UIState.self) private var ui
@@ -12,12 +12,13 @@ struct ProcessingBar: View {
         if progress.isVisible {
             Button {
                 store.continueInBackground()
-                ui.showProcessing()
+                ui.showInFolders(progress.phase == .refining ? .unsorted : .processing)
             } label: {
                 VStack(alignment: .leading, spacing: 8) {
                     switch progress.phase {
                     case let .finished(tally): FinishedContent(tally: tally)
-                    case .running, .idle: RunningContent(progress: progress)
+                    case .refining: RunningContent(title: "正在分類截圖", progress: progress)
+                    case .recognizing, .idle: RunningContent(title: "正在整理截圖", progress: progress)
                     }
                     ProgressLine(fraction: progress.fraction, height: 3)
                 }
@@ -30,21 +31,22 @@ struct ProcessingBar: View {
             .padding(.horizontal, 16)
             .padding(.top, 6)
             .transition(.move(edge: .bottom).combined(with: .opacity))
-            .accessibilityHint("查看處理中的截圖")
+            .accessibilityHint(progress.phase == .refining ? "查看未分類的截圖" : "查看處理中的截圖")
         }
     }
 }
 
 private struct RunningContent: View {
+    let title: String
     let progress: ProcessingProgress
 
     var body: some View {
         HStack(spacing: 8) {
             ProgressView().controlSize(.small).tint(Palette.text)
-            Text("正在整理截圖")
+            Text(title)
                 .font(Typeface.body(14, .semibold))
             Spacer(minLength: 0)
-            Text("\(progress.processed.formatted()) / \(progress.total.formatted())")
+            Text("\(progress.completed.formatted()) / \(progress.total.formatted())")
                 .font(Typeface.body(14))
                 .foregroundStyle(Palette.neutral700)
                 .monospacedDigit()

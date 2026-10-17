@@ -155,7 +155,7 @@ final class RestoredShotProcessingTests: XCTestCase {
             version: ClassificationPipeline.version
         )
         progress.record(tally, workCount: lib.processingWorkCount)
-        XCTAssertEqual(progress.processed, 1)
+        XCTAssertEqual(progress.completed, 1)
         XCTAssertEqual(progress.total, 3)
     }
 }
