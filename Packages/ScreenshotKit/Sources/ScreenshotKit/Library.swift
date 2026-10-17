@@ -156,16 +156,7 @@ public struct Library: Codable, Hashable, Sendable {
 
     /// Stores recognized text and barcodes; `nil` blocks record a failed attempt. Classification happens separately.
     public mutating func setRecognition(_ id: String, blocks: [TextBlock]?, barcodes: [String] = []) {
-        update([id]) { shot in
-            guard let blocks else {
-                shot.recognition = .failed
-                shot.recognitionAttempts += 1
-                return
-            }
-            shot.blocks = blocks
-            shot.barcodes = barcodes
-            shot.recognition = .done
-        }
+        update([id]) { $0.recordRecognition(blocks: blocks, barcodes: barcodes) }
     }
 
     // MARK: - Folders

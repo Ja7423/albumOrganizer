@@ -189,11 +189,9 @@ private struct RestoreOfferStep: View {
 private struct ImportStep: View {
     @Environment(LibraryStore.self) private var store
 
-    private let steps = ["掃描「螢幕截圖」相簿", "辨識圖中文字", "自動分類"]
-
     var body: some View {
-        let p = store.importProgress
-        let done = p.step >= 3
+        let progress = store.processingProgress
+        let done = store.isImportProcessed
         VStack(alignment: .leading, spacing: 0) {
             StepKicker(text: "步驟 2 / 2")
             Text(done ? "匯入完成" : "正在匯入截圖")
@@ -201,7 +199,7 @@ private struct ImportStep: View {
                 .padding(.top, 12)
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("\(p.found)")
+                Text("\(store.importFoundCount)")
                     .font(Typeface.head(72))
                     .monospacedDigit()
                     .contentTransition(.numericText())
@@ -217,36 +215,25 @@ private struct ImportStep: View {
                     .padding(.top, 4)
             }
 
-            GeometryReader { geo in
-                Rectangle().fill(Palette.neutral300)
-                    .overlay(alignment: .leading) {
-                        Rectangle().fill(Palette.accent).frame(width: geo.size.width * p.fraction)
-                    }
-            }
-            .frame(height: 4)
-            .padding(.top, 20)
-            .animation(.linear(duration: 0.2), value: p.fraction)
+            // The scan is done by the time this screen shows; the rest of the bar is recognition and classification.
+            ProgressLine(fraction: done ? 1 : 0.1 + 0.9 * progress.fraction)
+                .padding(.top, 20)
 
             VStack(spacing: 0) {
                 Hairline()
-                ForEach(Array(steps.enumerated()), id: \.offset) { index, label in
-                    StepRow(label: index == 1 && p.step == 1 && p.total > 0 ? "\(label)（\(p.recognized) / \(p.total)）" : label,
-                            done: p.step > index, active: p.step == index)
-                }
+                StepRow(label: "掃描「螢幕截圖」相簿", done: true, active: false)
+                StepRow(label: done || progress.total == 0 ? "辨識文字並自動分類" : "辨識文字並自動分類（\(progress.completed) / \(progress.total)）",
+                        done: done, active: !done)
             }
             .padding(.top, 24)
 
             Spacer()
 
-            if !done && p.step == 1 && p.total > 20 {
-                Button("先進入相簿，在背景繼續辨識") { store.finishImport() }
-                    .buttonStyle(.ghost)
-                    .padding(.bottom, 6)
-            }
-            ContinueButton(title: "進入相簿") { store.finishImport() }
-                .disabled(!done)
+            ContinueButton(title: done ? "進入相簿" : "進入相簿（背景繼續辨識）") { store.finishImport() }
         }
-        .animation(.easeOut(duration: 0.2), value: p)
+        .animation(.easeOut(duration: 0.2), value: progress)
+        .animation(.easeOut(duration: 0.2), value: done)
+        .keepsScreenAwake()
     }
 }
 

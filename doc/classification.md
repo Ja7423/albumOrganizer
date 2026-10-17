@@ -12,7 +12,7 @@
 | 佇列 | App target：`Services/ScreenshotProcessor.swift`、`Services/TextRecognizer.swift` |
 | 評估 | `scripts/export-labeled-shots.sh`、`swift run classification-eval`，見 §8.1 |
 | 設計決策 | [plan/screenshot-auto-classification-2026-10-07.md](plan/screenshot-auto-classification-2026-10-07.md)（規則層與狀態模型）、[plan/llm-refinement-classifier-2026-10-11.md](plan/llm-refinement-classifier-2026-10-11.md)（Apple Intelligence 補判）、[plan/classification-evaluation-2026-10-11.md](plan/classification-evaluation-2026-10-11.md)（評估工具） |
-| 文件更新日期 | 2026-10-12（對應 `feature/classification-eval`） |
+| 文件更新日期 | 2026-10-14（對應 `feature/processing-progress`） |
 
 ---
 
@@ -29,7 +29,8 @@ Photos 同步 ──▶ .pending ──OCR──▶ 訊號 ──▶ 規則層 �
 使用者手動搬移（任何時候）──▶ .user：鎖定，之後永遠不再自動處理；也是學習層的訓練資料
 ```
 
-- **主佇列**：Vision 辨識文字，再用規則和學習層分類。速度快，幾毫秒就能判斷一張，首次匯入只等這一段。學習層要等使用者手動整理過至少 20 張才會開始回答。
+- **主佇列**：Vision 辨識文字，再用規則和學習層分類。同時處理 2 張（裝置過熱或低耗電模式時降到 1 張，見 `ProcessingConcurrency`）。Vision 的文字辨識會排隊執行，第二個 worker 只是讓讀圖和 OCR 重疊；實機上 OCR 每張約 0.4 秒，每分鐘約 150 張，結果每 0.5 秒或每 20 張合併寫回一次。首次匯入只等這一段，進度顯示在匯入畫面和 tab bar 上方的進度列（`ProcessingProgress`，本輪 ≥ 20 張才顯示）。學習層要等使用者手動整理過至少 20 張才會開始回答。
+- **離開 App 後**：使用者匯入、下拉重新整理或點進度列時，若本輪 ≥ 20 張，就提交 `BGContinuedProcessingTask`（`ContinuedProcessingService`），切到別的 App 或鎖定螢幕時主佇列繼續跑，系統 UI 顯示「正在整理截圖／已完成 X / Y 張」。系統取消時處理器暫停（進行中的做完、寫回、存檔），回到前景時繼續同一輪，進度列數字接續。補判佇列不在背景跑。見 [continued-processing-2026-10-15.md](plan/continued-processing-2026-10-15.md)。
 - **補判佇列**：主佇列清空之後，才把前兩層判斷不出來的截圖交給 Apple Intelligence。每張大約 0.5–2 秒，在背景慢慢跑。有新截圖進來時，主佇列一定先處理。
 - **原則：錯放比不放更糟。** 每一層都設計得很保守，沒把握就不放，留在未分類讓使用者自己決定。
 
@@ -48,7 +49,9 @@ Photos 同步 ──▶ .pending ──OCR──▶ 訊號 ──▶ 規則層 �
 | `LLMCategoryPrompt` | `ScreenshotKit/Classification/LLMCategoryPrompt.swift` | Apple Intelligence 的 instructions、prompt、可選答案、回答的解讀（純函式） |
 | `FoundationModelsClassifier` | `ScreenshotKitLLM/FoundationModelsClassifier.swift` | 呼叫裝置上的模型、分類錯誤；`ClassificationPipeline.appleIntelligence`（門檻 0.6） |
 | `Library+Classification` | `ScreenshotKit/Library+Classification.swift` | 待處理名單、套用結果、版本更新時重新排入 |
-| `ScreenshotProcessor` | App `Services/ScreenshotProcessor.swift` | 兩個佇列的排程 |
+| `ProcessingQueue`、`ProcessingOutcome`、`OutcomeBuffer`、`ProcessingConcurrency`、`ProcessingProgress` | `ScreenshotKit/Processing/` | 主佇列的規則（純函式）：本輪工作清單、一批結果一次寫回（`applyProcessingOutcomes`）、何時寫回、同時處理幾張、進度數字 |
+| `ScreenshotProcessor` | App `Services/ScreenshotProcessor.swift` | 兩個佇列的排程：主佇列用 task group 平行處理，補判一次一張 |
+| `ProcessingSignposts` | App `Services/ProcessingSignposts.swift` | 各階段的 os_signpost 與每輪的總結 log |
 | `LabeledSample`、`ClassificationEvaluation`、`EvaluationReport` | `ScreenshotKit/Classification/Evaluation/` | 評估集、用 pipeline 跑評估、算指標（§8.1） |
 
 `ScreenshotClassifier` 協定只有一個方法 `classify(_:) async throws -> ClassifierVerdict?`，語意如下：
@@ -489,5 +492,13 @@ sqlite3 "$(xcrun simctl get_app_container booted com.chiawei.albumOrganizer data
 ```bash
 xcrun simctl spawn booted log stream --level info --predicate 'subsystem == "com.chiawei.albumOrganizer" AND category == "classification"'
 ```
+
+查看主佇列的速度（每輪結束一行：張數、耗時、每分鐘張數、同時處理幾張）：
+
+```bash
+xcrun simctl spawn booted log stream --level info --predicate 'subsystem == "com.chiawei.albumOrganizer" AND category == "processing"'
+```
+
+要看每張截圖各階段的耗時，在 Instruments 用 os_signpost（或 Time Profiler 加上 Points of Interest），subsystem `com.chiawei.albumOrganizer`、category `processing`，區段名稱是 `loadImage`、`recognize`、`classify`、`apply`。模擬器的數字沒有參考價值，速度要在實機上量。
 
 模擬器上要讓截圖出現在「螢幕截圖」相簿，PNG 的 EXIF `UserComment` 必須是 `Screenshot`，再用 `xcrun simctl addmedia` 加入。一般的圖片不會被當成截圖。
