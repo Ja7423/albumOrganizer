@@ -23,6 +23,13 @@ final class UIState {
     enum SheetContext: Equatable { case batch, detail }
 
     enum Dialog: Equatable {
+        /// 新增資料夾 / 重新命名資料夾 / 新增標籤.
+        case name(NameDialogKind)
+        /// 刪除截圖, acting on the batch selection or the open detail.
+        case deleteShots(SheetContext)
+    }
+
+    enum NameDialogKind: Equatable {
         case newFolder(moveAfter: Bool)
         case renameFolder(UUID)
         case newTag
@@ -110,7 +117,12 @@ final class UIState {
 
     /// Screenshot IDs the open sheet acts on.
     var sheetTargets: [String] {
-        switch sheetContext {
+        targets(for: sheetContext)
+    }
+
+    /// The batch selection, or the screenshot open in the detail page.
+    func targets(for context: SheetContext) -> [String] {
+        switch context {
         case .batch: return Array(selection)
         case .detail: return detailID.map { [$0] } ?? []
         }

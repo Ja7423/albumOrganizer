@@ -40,7 +40,8 @@ N 個資料夾                [＋ 新增]
 ```
 
 - Kicker：`N 個資料夾`（只算真實資料夾，不含處理中／未分類）。
-- 「新增」→ 命名對話框 `.newFolder(moveAfter: false)`。
+- 右上角齒輪（`gearshape`）→ 設定 sheet（iCloud 備份、刪除截圖偏好，見 [shared-detail-and-sheets.md §9](shared-detail-and-sheets.md#9-設定-sheet)）。
+- 「新增」→ 命名對話框 `.name(.newFolder(moveAfter: false))`。
 - 每列：52×52 封面（該資料夾第一張＝最新的截圖，靠上裁切；空的顯示圖示）、名稱（單行）、`N 張`、›。
 
 ### 3.2 排序
@@ -55,7 +56,7 @@ N 個資料夾                [＋ 新增]
 
 | 項目 | 行為 |
 |------|------|
-| 重新命名 | 命名對話框 `.renameFolder(id)`，預填目前名稱。名稱與其他資料夾重複時拒絕並 toast「已經有同名的資料夾」 |
+| 重新命名 | 命名對話框 `.name(.renameFolder(id))`，預填目前名稱。名稱與其他資料夾重複時拒絕並 toast「已經有同名的資料夾」 |
 | 刪除資料夾（destructive） | **立即刪除，沒有確認**。toast「已刪除資料夾「X」，自動分類的截圖會重新分類」 |
 
 刪除資料夾的規則（`Library.deleteFolder`）：

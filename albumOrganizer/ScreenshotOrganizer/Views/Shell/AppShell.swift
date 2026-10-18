@@ -51,9 +51,14 @@ struct AppShell: View {
                 .zIndex(30)
 
             if let dialog = ui.dialog {
-                NameDialog(kind: dialog)
-                    .transition(.opacity)
-                    .zIndex(45)
+                Group {
+                    switch dialog {
+                    case let .name(kind): NameDialog(kind: kind)
+                    case let .deleteShots(context): DeleteShotsDialog(context: context)
+                    }
+                }
+                .transition(.opacity)
+                .zIndex(45)
             }
         }
         .animation(.easeOut(duration: 0.2), value: ui.dialog)
@@ -112,6 +117,7 @@ struct TabBar: View {
 struct BatchBar: View {
     @Environment(LibraryStore.self) private var store
     @Environment(UIState.self) private var ui
+    @Environment(DeletionSettings.self) private var deletion
 
     var body: some View {
         let none = ui.selection.isEmpty
@@ -131,15 +137,12 @@ struct BatchBar: View {
                 .buttonStyle(ClassicalButtonStyle(kind: .secondary, fullWidth: true, alignment: .leading))
 
                 Button {
-                    let ids = Array(ui.selection)
-                    store.mutate { $0.hide(ids) }
-                    ui.endSelecting()
-                    ui.showToast("已從 App 移除 \(ids.count) 張（相簿原檔保留）")
+                    ShotDeletion(store: store, ui: ui, settings: deletion).request(for: .batch)
                 } label: {
                     Image(systemName: "trash").font(.system(size: 15))
                 }
                 .buttonStyle(IconButtonStyle(kind: .secondary, size: 36, tint: Palette.text))
-                .accessibilityLabel("移除")
+                .accessibilityLabel("刪除")
             }
             .disabled(none)
             .padding(8)

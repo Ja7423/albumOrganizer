@@ -13,6 +13,7 @@ import UIKit
 @Observable
 final class LibraryStore {
     enum Phase: Equatable { case welcome, permission, restoreOffer, importing, app }
+    enum DeletionOutcome: Equatable { case deleted, cancelled, failed }
 
     private(set) var library: Library
     var phase: Phase
@@ -45,6 +46,7 @@ final class LibraryStore {
     @ObservationIgnored private let continuedProcessing: ContinuedProcessingService
 
     private static let onboardedKey = "didFinishOnboarding"
+    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "albumOrganizer", category: "deletion")
     /// How long a finished run's summary stays in the bar.
     private static let summaryDuration: Duration = .seconds(3)
 
@@ -333,6 +335,27 @@ final class LibraryStore {
         mutate { $0.deleteFolder(id) }
         learning.update(for: library.trainingSet)
         processor.start()
+    }
+
+    /// Removing from the app hides the screenshots; deleting from Photos waits for the user to confirm in
+    /// the system alert, then syncs so the deleted screenshots leave the library.
+    func delete(_ ids: [String], method: DeletionMethod) async -> DeletionOutcome {
+        switch method {
+        case .removeFromApp:
+            mutate { $0.hide(ids) }
+            return .deleted
+        case .deleteFromPhotos:
+            do {
+                try await photos.deleteAssets(ids)
+            } catch let error as PHPhotosError where error.code == .userCancelled {
+                return .cancelled
+            } catch {
+                Self.log.error("Deleting from Photos failed: \(error)")
+                return .failed
+            }
+            syncWithPhotos()
+            return .deleted
+        }
     }
 
     /// Screenshots added, moved or hidden mid-run change the progress total along with the library.

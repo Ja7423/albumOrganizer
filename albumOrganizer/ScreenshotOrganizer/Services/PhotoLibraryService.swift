@@ -3,7 +3,8 @@ import PhotosUI
 import ScreenshotKit
 import UIKit
 
-/// Read-only access to the Screenshots smart album. Photos are never moved or modified.
+/// Access to the Screenshots smart album. Photos are never moved or modified; they are deleted only
+/// when the user chooses to delete the originals.
 final nonisolated class PhotoLibraryService: NSObject, PHPhotoLibraryChangeObserver, @unchecked Sendable {
     static let shared = PhotoLibraryService()
 
@@ -102,6 +103,15 @@ final nonisolated class PhotoLibraryService: NSObject, PHPhotoLibraryChangeObser
     func photoLibraryDidChange(_: PHChange) {
         guard let onChange else { return }
         Task { @MainActor in onChange() }
+    }
+
+    /// Moves the assets to Recently Deleted. Photos asks the user to confirm first, and throws
+    /// `PHPhotosError.userCancelled` when they decline.
+    func deleteAssets(_ ids: [String]) async throws {
+        let assets = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
+        try await PHPhotoLibrary.shared().performChanges {
+            PHAssetChangeRequest.deleteAssets(assets)
+        }
     }
 
     // MARK: - Images

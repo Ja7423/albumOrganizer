@@ -66,7 +66,7 @@ struct SheetHost: View {
             switch sheet {
             case .move: MoveSheetContent()
             case .tags: TagSheetContent()
-            case .settings: BackupSection()
+            case .settings: SettingsContent()
             }
         }
     }
@@ -75,13 +75,13 @@ struct SheetHost: View {
         switch sheet {
         case .move: return "移到資料夾"
         case .tags: return "標籤"
-        case .settings: return "iCloud 備份"
+        case .settings: return "設定"
         }
     }
 
     private func subtitle(_ sheet: UIState.Sheet) -> String {
         switch sheet {
-        case .settings: return "備份只存在你自己的 iCloud"
+        case .settings: return "備份與刪除偏好"
         case _ where ui.sheetContext == .batch: return "套用到 \(ui.selection.count) 張截圖"
         case .move: return "一張截圖只會在一個資料夾"
         case .tags: return "可以加上多個標籤"
@@ -99,11 +99,11 @@ private struct MoveSheetContent: View {
         let detailShot: Shot? = ui.sheetContext == .detail ? ui.sheetTargets.first.flatMap { lib.shot($0) } : nil
 
         VStack(spacing: 0) {
-            row(name: Library.unsortedName, icon: "tray", count: lib.count(in: .unsorted), isCurrent: detailShot != nil && detailShot?.folderID == nil) { move(to: nil) }
+            SheetRow(name: Library.unsortedName, icon: "tray", count: lib.count(in: .unsorted), isCurrent: detailShot != nil && detailShot?.folderID == nil) { move(to: nil) }
             ForEach(lib.folders) { folder in
-                row(name: folder.name, icon: "folder", count: lib.count(in: .folder(folder.id)), isCurrent: detailShot?.folderID == folder.id) { move(to: folder.id) }
+                SheetRow(name: folder.name, icon: "folder", count: lib.count(in: .folder(folder.id)), isCurrent: detailShot?.folderID == folder.id) { move(to: folder.id) }
             }
-            Button { ui.dialog = .newFolder(moveAfter: true) } label: {
+            Button { ui.dialog = .name(.newFolder(moveAfter: true)) } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "folder.badge.plus").font(.system(size: 17))
                     Text("新增資料夾").font(Typeface.body(16))
@@ -114,25 +114,6 @@ private struct MoveSheetContent: View {
             }
             .buttonStyle(.pressable)
         }
-    }
-
-    private func row(name: String, icon: String, count: Int, isCurrent: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    Image(systemName: icon).font(.system(size: 17)).frame(width: 20)
-                    Text(name).font(Typeface.body(16))
-                    Spacer()
-                    Text("\(count)").font(Typeface.body(13)).foregroundStyle(Palette.neutral700).monospacedDigit()
-                    if isCurrent {
-                        Image(systemName: "checkmark").font(.system(size: 16, weight: .semibold)).foregroundStyle(Palette.accent)
-                    }
-                }
-                .padding(.vertical, 13)
-                Hairline()
-            }
-        }
-        .buttonStyle(.pressable)
     }
 
     private func move(to folderID: UUID?) {
@@ -211,13 +192,60 @@ private struct TagSheetContent: View {
     }
 }
 
+// MARK: - Settings
+
+/// The 設定 sheet: iCloud backup, then what deleting screenshots does.
+private struct SettingsContent: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Kicker("iCloud 備份").padding(.top, 16)
+            BackupSection()
+            Kicker("刪除截圖").padding(.top, 28)
+            DeletePreferenceSection()
+        }
+    }
+}
+
+// MARK: - Sheet row
+
+/// A tappable list row in a sheet, checked when it is the current choice.
+struct SheetRow: View {
+    let name: String
+    let icon: String
+    var count: Int? = nil
+    let isCurrent: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 0) {
+                HStack(spacing: 12) {
+                    Image(systemName: icon).font(.system(size: 17)).frame(width: 20)
+                    Text(name).font(Typeface.body(16))
+                    Spacer()
+                    if let count {
+                        Text("\(count)").font(Typeface.body(13)).foregroundStyle(Palette.neutral700).monospacedDigit()
+                    }
+                    if isCurrent {
+                        Image(systemName: "checkmark").font(.system(size: 16, weight: .semibold)).foregroundStyle(Palette.accent)
+                    }
+                }
+                .padding(.vertical, 13)
+                Hairline()
+            }
+        }
+        .buttonStyle(.pressable)
+        .accessibilityAddTraits(isCurrent ? .isSelected : [])
+    }
+}
+
 // MARK: - Name dialog
 
 /// `.dialog` for 新增資料夾 / 重新命名資料夾 / 新增標籤.
 struct NameDialog: View {
     @Environment(LibraryStore.self) private var store
     @Environment(UIState.self) private var ui
-    let kind: UIState.Dialog
+    let kind: UIState.NameDialogKind
     @State private var name = ""
     @FocusState private var focused: Bool
 

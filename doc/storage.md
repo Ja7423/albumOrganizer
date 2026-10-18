@@ -226,7 +226,8 @@ store.mutate { $0.xxx }
 | 啟動 | `requeueOutdated` | `LibraryStore.init` |
 | 資料夾 | `createFolder`、`renameFolder`、`deleteFolder`、`move` | `Sheets.swift`、`LibraryStore.deleteFolder` |
 | 標籤 | `createTag`、`deleteTag`、`toggleTag`、`addTag`、`dismissFeatureTag` | `Sheets.swift`、`TagsScreen.swift` |
-| 從 App 移除 | `hide` | `AppShell.swift` |
+| 從 App 移除 | `hide` | `LibraryStore.delete`（`.removeFromApp`，由 `ShotDeletion` 呼叫） |
+| 連同相簿一起刪除 | Photos 刪除原檔後 `sync(with:)` 把它們移除 | `LibraryStore.delete`（`.deleteFromPhotos`） |
 
 首次匯入時，每張截圖完成 OCR 和分類都會觸發一次存檔，但每次只寫那一張的 `shot` 和 `recognition`。
 

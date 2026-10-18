@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 struct ShotDetailScreen: View {
     @Environment(LibraryStore.self) private var store
     @Environment(UIState.self) private var ui
+    @Environment(DeletionSettings.self) private var deletion
 
     @State private var selecting = false
     @State private var selected: Set<Int> = []
@@ -65,6 +66,14 @@ struct ShotDetailScreen: View {
                 }
                 .buttonStyle(IconButtonStyle())
                 .accessibilityLabel("分享")
+
+                Button {
+                    ShotDeletion(store: store, ui: ui, settings: deletion).request(for: .detail)
+                } label: {
+                    Image(systemName: "trash").font(.system(size: 17))
+                }
+                .buttonStyle(IconButtonStyle())
+                .accessibilityLabel("刪除")
             }
             .padding(.top, 4)
             .padding(.leading, 2)
