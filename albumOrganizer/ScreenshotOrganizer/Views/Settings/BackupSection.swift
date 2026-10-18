@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// iCloud backup status and actions, in the iCloud 備份 sheet.
+/// iCloud backup status and actions, in the 設定 sheet.
 struct BackupSection: View {
     @Environment(LibraryStore.self) private var store
     @Environment(UIState.self) private var ui
@@ -10,14 +10,14 @@ struct BackupSection: View {
         VStack(alignment: .leading, spacing: 0) {
             Text(statusLine(backup))
                 .font(Typeface.body(15))
-                .padding(.top, 16)
+                .padding(.top, 8)
             if let error = backup.lastError {
                 Text(error)
                     .font(Typeface.body(13))
                     .foregroundStyle(Palette.accent700)
                     .padding(.top, 4)
             }
-            Text("備份資料夾、標籤與分類，不含截圖本身與辨識出的文字。換手機時建議開啟「iCloud 照片」，截圖才能準確對回原本的分類。")
+            Text("備份只存在你自己的 iCloud，包含資料夾、標籤與分類，不含截圖本身與辨識出的文字。換手機時建議開啟「iCloud 照片」，截圖才能準確對回原本的分類。")
                 .font(Typeface.body(12))
                 .foregroundStyle(Palette.neutral700)
                 .lineSpacing(2)
