@@ -5,8 +5,9 @@
 | 元件 | 檔案 | 掛載位置 |
 |------|------|------|
 | 詳細頁 | `Views/Detail/ShotDetailScreen.swift`、`ShotPage.swift` | `AppShell` 的 ZStack，zIndex 20，從右側滑入 |
-| Sheet（移到資料夾／標籤） | `Views/Shell/Sheets.swift` → `SheetHost` | `AppShell`，zIndex 30，從下方滑入 |
-| 命名對話框 | `Sheets.swift` → `NameDialog` | `AppShell`，zIndex 45，淡入 |
+| Sheet（移到資料夾／標籤／設定） | `Views/Shell/Sheets.swift` → `SheetHost` | `AppShell`，zIndex 30，從下方滑入 |
+| 命名對話框 | `Sheets.swift` → `NameDialog`（`ui.dialog = .name(…)`） | `AppShell`，zIndex 45，淡入 |
+| 刪除截圖對話框 | `Views/Shell/DeleteShotsDialog.swift`（`ui.dialog = .deleteShots(context)`） | `AppShell`，zIndex 45，淡入 |
 | 批次列 | `Views/Shell/AppShell.swift` → `BatchBar` | 選取模式時取代 TabBar |
 | Toast | `AppShell.swift` → `ToastView` | `RootView`，zIndex 50 |
 | 部分權限提示 | `Views/Common/LimitedAccessBanner.swift` | 截圖 tab（根 grid）、資料夾 tab |
@@ -27,7 +28,7 @@
 
 | 區塊 | 內容 |
 |------|------|
-| Header | 「‹ 返回」、分享按鈕 |
+| Header | 「‹ 返回」、分享按鈕、刪除（垃圾桶）按鈕 |
 | 圖片區（pager） | 水平分頁 ScrollView，一頁一張，圖片 fit 進頁面並留 20pt 邊距；左下角浮著「辨識文字」按鈕 |
 | 底部 | 非選取模式：資訊列；文字選取模式：選取面板 |
 
@@ -37,11 +38,15 @@
 - 快照的意義：在詳細頁把這張移到別的資料夾，它仍留在可翻頁清單裡，不會突然跳走。
 - 翻頁會清掉文字選取狀態；資訊列的展開狀態保留。
 - 文字選取模式下停用翻頁。
-- 目前這張在開啟中被刪除（Photos 端刪除、同步後消失）：跳到清單裡的下一張，沒有就上一張，都沒有才關閉詳細頁。
+- 目前這張在開啟中被刪除（Photos 端刪除、同步後消失，或在詳細頁按刪除）：跳到清單裡的下一張，沒有就上一張，都沒有才關閉詳細頁。
 
 ### 1.4 分享
 
 `ShareLink` 分享原圖（`ShotImage`），以 PNG 輸出：原檔是 PNG 直接用，否則轉檔。取不到原圖時拋錯，系統分享面板處理。
+
+### 1.5 刪除
+
+Header 右上的垃圾桶刪除目前這張，流程見 §8（detail context）。刪除成功後依 §1.3 跳到下一張／上一張，都沒有才關閉詳細頁；取消或失敗時停在原本這張。
 
 ### 1.5 文字辨識按鈕與文字選取
 
@@ -90,7 +95,7 @@
 - 列表：`未分類` → 所有資料夾（**儲存順序**，不是空的排最後）→「新增資料夾」。每列顯示目前張數。
 - 詳細頁 context 時，目前所在資料夾打勾（處理中的截圖沒有任何一列打勾）。
 - 點某列：`Library.move(ids, to:)`，**placement 改成 `.user` 鎖定**，關閉 sheet；批次時同時結束選取模式。toast：詳細頁「已移到「X」」、批次「N 張已移到「X」」。
-- 「新增資料夾」：開命名對話框 `.newFolder(moveAfter: true)`，建立後直接把目標移進去（見 §4）。
+- 「新增資料夾」：開命名對話框 `.name(.newFolder(moveAfter: true))`，建立後直接把目標移進去（見 §4）。
 - sheet 高度依內容自動調整，最高為畫面高度 72%，超過可捲動。
 
 ## 3. 「標籤」sheet
@@ -103,6 +108,8 @@
 - sheet 不會因為點選標籤而關閉。
 
 ## 4. 命名對話框（NameDialog）
+
+以 `ui.dialog = .name(kind)` 開啟，`kind` 是 `UIState.NameDialogKind`：
 
 | 種類 | 標題 | 確認鍵 | 送出後 |
 |------|------|------|------|
@@ -122,9 +129,9 @@
 ## 5. 批次列（BatchBar）
 
 - 在 grid 按「選取」後，取代畫面底部的 TabBar。
-- 按鈕：「移到資料夾」（開 §2 batch context）、「標籤」（開 §3 batch context）、垃圾桶「移除」。
+- 按鈕：「移到資料夾」（開 §2 batch context）、「標籤」（開 §3 batch context）、垃圾桶「刪除」。
 - 一張都沒選時三個按鈕都停用。
-- 「移除」：`Library.hide(ids)`，從 App 移除（加入 `hiddenShotIDs`，之後同步不會加回），Photos 原檔保留。**沒有確認步驟**。結束選取模式，toast「已從 App 移除 N 張（相簿原檔保留）」。
+- 垃圾桶：刪除已選的截圖，流程見 §8（batch context）。成功後結束選取模式；取消或失敗時保留選取模式與已選的截圖。
 
 ## 6. Toast
 
@@ -137,3 +144,51 @@
 - 文案：「只整理你選取的截圖」＋說明。
 - 「選取更多截圖」：開系統的有限照片選擇器；選完後 Photos 變更通知會觸發同步。
 - 「前往設定」：開 App 的系統設定頁。
+
+## 8. 刪除截圖（DeleteShotsDialog）
+
+批次列（§5）與詳細頁（§1.5）的垃圾桶共用同一套流程，由 `ShotDeletion`（`Store/ShotDeletion.swift`）協調。作用對象由 `ui.targets(for: context)` 決定（batch = 已選的 id；detail = 目前這張）。
+
+### 8.1 要不要問
+
+- 垃圾桶 → `ShotDeletion.request(for: context)`：
+  - 設定裡記住了刪除方式（`DeletionSettings.preference == .always(method)`）→ 不開對話框，直接用該方式刪除。
+  - 否則（`.ask`，預設）→ 開刪除截圖對話框。
+
+### 8.2 對話框
+
+| 區塊 | 內容 |
+|------|------|
+| 標題 | 批次「刪除 N 張截圖」；詳細頁「刪除這張截圖」 |
+| 內文 | 「要連同「照片」相簿中的原檔一起刪除嗎？刪除的原檔會移到「最近刪除」，30 天內可復原。」 |
+| 勾選框 | 「記住這個選擇，以後不再詢問」，每次開啟都預設不勾 |
+| 按鈕（直排） | 「連同相簿一起刪除」（primary，垃圾桶 icon）、「只從 App 移除」（secondary）、「取消」（ghost） |
+
+- 「取消」或點背景遮罩：關閉，不做任何修改。
+- 按刪除方式後先關閉對話框，再執行刪除（讓系統確認 alert 單獨出現）。
+
+### 8.3 兩種刪除方式（`DeletionMethod`）
+
+| 方式 | 做什麼 |
+|------|------|
+| 連同相簿一起刪除（`.deleteFromPhotos`） | `PhotoLibraryService.deleteAssets` → `PHAssetChangeRequest.deleteAssets`。**iOS 一定會再跳系統確認 alert**（App 無法關閉，記住選擇後也一樣）。使用者確認後原檔移到「照片」的「最近刪除」，App 立即 `syncWithPhotos()`，這些截圖從 Library 消失（不寫進 `hiddenShotIDs`）。 |
+| 只從 App 移除（`.removeFromApp`） | `Library.hide(ids)`：加入 `hiddenShotIDs`，之後同步不會加回，Photos 原檔保留。 |
+
+### 8.4 結果
+
+| 結果（`LibraryStore.DeletionOutcome`） | 行為 | toast |
+|------|------|------|
+| 成功（`.deleted`） | 有勾「記住」時寫入偏好；batch 結束選取模式；detail 依 §1.3 換頁 | 批次「已刪除 N 張（含相簿原檔）」／「已從 App 移除 N 張（相簿原檔保留）」；詳細頁「已刪除這張（含相簿原檔）」／「已從 App 移除這張（相簿原檔保留）」。有勾記住時加上「・已記住此選擇」 |
+| 系統 alert 被取消（`.cancelled`，`PHPhotosError.userCancelled`） | 什麼都不移除、不寫入偏好；batch 保留選取，detail 停在原張 | 「已取消，原檔未刪除」 |
+| 其他錯誤（`.failed`） | 同上 | 「無法刪除原檔，請稍後再試」 |
+
+文案集中在 ScreenshotKit 的 `DeletionCopy`。
+
+## 9. 設定 sheet
+
+- 開啟：資料夾 tab 右上角齒輪（`gearshape`，accessibilityLabel「設定」）→ `ui.present(.settings, for: .detail)`。
+- 標題「設定」，副標「備份與刪除偏好」。內容分兩區：
+  - **iCloud 備份**（`Views/Settings/BackupSection.swift`）：備份狀態、說明、「立即備份」「從備份還原」或還沒處理的備份的「還原」「略過」（見 [storage.md §7](../storage.md#7-icloud-備份與還原)）。
+  - **刪除截圖**（`Views/Settings/DeletePreferenceSection.swift`）：說明「點垃圾桶時要做什麼。選「連同相簿一起刪除」時，「照片」仍會請你再確認一次。」＋三選一列表「每次詢問」「連同相簿一起刪除」「只從 App 移除」，目前的選項打 ✓。點選立即生效，不顯示 toast。
+- 刪除偏好由 `DeletionSettings` 保存在 `UserDefaults`（key `deletionPreference`，值為 `DeletionMethod` 的 raw value；「每次詢問」時移除這個 key），批次與詳細頁共用。對話框勾「記住」寫入的也是同一個值。
+- 列表樣式與「移到資料夾」sheet 共用 `SheetRow`。

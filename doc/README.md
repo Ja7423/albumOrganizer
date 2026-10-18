@@ -1,6 +1,6 @@
 # 截圖整理（albumOrganizer）文件目錄
 
-讀取 iOS「螢幕截圖」相簿，在裝置上辨識圖中文字、自動分類，讓使用者用資料夾、標籤、全文搜尋整理截圖。**相簿原檔永遠不會被移動或修改**，資料夾、標籤、辨識結果都只存在 App 裡。
+讀取 iOS「螢幕截圖」相簿，在裝置上辨識圖中文字、自動分類，讓使用者用資料夾、標籤、全文搜尋整理截圖。**相簿原檔永遠不會被移動或修改**，只有在使用者選擇「連同相簿一起刪除」時才會把原檔移到「照片」的「最近刪除」；資料夾、標籤、辨識結果都只存在 App 裡。
 
 | 項目 | 內容 |
 |------|------|
@@ -9,7 +9,7 @@
 | 領域邏輯 | 本地 Swift Package `ScreenshotKit`（iOS 17 / macOS 14，可單獨 `swift test`） |
 | 儲存 | SQLite（GRDB 7）：`Application Support/library.sqlite`，本地 Swift Package `LibraryPersistence`（見 [storage.md](storage.md)） |
 | App 名稱 | Scapio（bundle id `com.chiawei.albumOrganizer`），透過 TestFlight 發佈（見 [deploy.md](deploy.md)） |
-| 文件更新日期 | 2026-10-13（對應 `feature/deploy-flow`） |
+| 文件更新日期 | 2026-10-18（刪除截圖對話框） |
 
 ## 文件索引
 
@@ -23,7 +23,7 @@
 | [spec/tab-folders.md](spec/tab-folders.md) | 「資料夾」tab：資料夾列表、處理中／未分類、新增／改名／刪除 |
 | [spec/tab-tags.md](spec/tab-tags.md) | 「標籤」tab：自動標籤、我的標籤、新增／刪除 |
 | [spec/tab-search.md](spec/tab-search.md) | 「搜尋」tab：全文搜尋、結果高亮 |
-| [spec/shared-detail-and-sheets.md](spec/shared-detail-and-sheets.md) | 四個 tab 共用的部分：詳細頁、移到資料夾／標籤 sheet、命名對話框、批次列、toast |
+| [spec/shared-detail-and-sheets.md](spec/shared-detail-and-sheets.md) | 四個 tab 共用的部分：詳細頁、移到資料夾／標籤／設定 sheet、命名對話框、刪除截圖對話框、批次列、toast |
 | [plan/](plan/) | 各功能的規劃紀錄（決策與理由） |
 
 ---
@@ -36,7 +36,7 @@
 ┌──────────────────────────── App target（albumOrganizer/ScreenshotOrganizer）────────────────────────────┐
 │                                                                                                        │
 │  Views ──讀取/呼叫──▶  Store                         Services                                          │
-│  (SwiftUI 畫面)        ├─ LibraryStore  ─────────▶   ├─ PhotoLibraryService（Photos 唯讀存取、縮圖快取）  │
+│  (SwiftUI 畫面)        ├─ LibraryStore  ─────────▶   ├─ PhotoLibraryService（Photos 讀取／刪除、縮圖快取）│
 │                        │  (領域狀態 + 存檔 + 同步)    ├─ ScreenshotProcessor（辨識 → 分類的工作佇列）     │
 │                        ├─ UIState                    └─ VisionScreenRecognizer（Vision OCR + 條碼）      │
 │                        │  (導航與暫時 UI 狀態)                                                         │
@@ -73,6 +73,7 @@
 | `FeatureTag.swift` / `FeatureDetector.swift` | 自動標籤：含連結、QR code、含電話、含日期、含地址 |
 | `Signals.swift` | 從文字與版面算出訊號（連結、電話、日期、地址、條碼數、對話泡泡、程式符號密度） |
 | `Search.swift` | 全文搜尋，回傳切好前後文的 `SearchHit` |
+| `ShotDeletion.swift` | 刪除截圖的值型別：`DeletionMethod`（連同相簿／只從 App）、`DeletionPreference`（每次詢問／記住的方式，含 `UserDefaults` 儲存值轉換）、對話框與 toast 文案 `DeletionCopy` |
 | `Classification/*` | 分類器協定、依序執行各層的 `ClassificationPipeline`（目前 `version = 10`）、規則層 `RuleClassifier`、學習層的訓練資料 `TrainingSet`、Apple Intelligence 的 prompt `LLMCategoryPrompt`（見 [classification.md](classification.md)） |
 | `Resources/seed-samples.json` | 合成的 OCR 樣本：規則層的回歸測試集，也是學習層的種子樣本 |
 
@@ -90,20 +91,24 @@
 
 | 目錄 | 檔案 | 職責 |
 |------|------|------|
-| `App/` | `ScreenshotOrganizerApp.swift` | 建立 `LibraryStore`、`UIState` 放進 environment；`RootView` 依 `store.phase` 切換 Onboarding / AppShell；監聽 scenePhase（進背景立即存檔並備份到 iCloud、回前景重新同步） |
-| `Store/` | `LibraryStore.swift` | 持有 `Library`；首次匯入流程（含 iCloud 還原詢問）；Photos 同步；餵處理佇列；`mutate` 後 400ms debounce 存檔（沒有變動就不寫）；套用備份還原 |
+| `App/` | `ScreenshotOrganizerApp.swift` | 建立 `LibraryStore`、`UIState`、`DeletionSettings` 放進 environment；`RootView` 依 `store.phase` 切換 Onboarding / AppShell；監聽 scenePhase（進背景立即存檔並備份到 iCloud、回前景重新同步） |
+| `Store/` | `LibraryStore.swift` | 持有 `Library`；首次匯入流程（含 iCloud 還原詢問）；Photos 同步；餵處理佇列；`mutate` 後 400ms debounce 存檔（沒有變動就不寫）；套用備份還原；`delete(_:method:)` 刪除截圖（從 App 移除或刪除 Photos 原檔） |
 | | `UIState.swift` | 目前 tab、截圖 tab 的 chip、各 tab 的 NavigationStack path、批次選取、詳細頁、sheet、dialog、toast |
 | | `DetailSession.swift` | 詳細頁開啟時拍下的 id 清單與目前頁 |
-| `Services/` | `PhotoLibraryService.swift` | 權限、撈出所有螢幕截圖、變更通知、縮圖串流（`PHCachingImageManager` + 64MB `NSCache`）、原圖資料 |
+| | `DeletionSettings.swift` | 記住的刪除方式（`UserDefaults["deletionPreference"]`），批次與詳細頁共用 |
+| | `ShotDeletion.swift` | 垃圾桶的流程：沒有記住選擇就開刪除對話框，刪除後依結果 toast、結束選取 |
+| `Services/` | `PhotoLibraryService.swift` | 權限、撈出所有螢幕截圖、變更通知、縮圖串流（`PHCachingImageManager` + 64MB `NSCache`）、原圖資料、刪除原檔（`deleteAssets`，系統會跳確認） |
 | | `ScreenshotProcessor.swift` | 一次處理一張：先 OCR、再用規則分類；主佇列清空後，對未分類的截圖用 Apple Intelligence 補判；支援把某張插到最前面（`prioritize`） |
 | | `FoundationModelsClassifier.swift` | 呼叫裝置上的 Foundation Models 補判；分辨「這張判斷不了」和「現在判斷不了」 |
 | | `BackupService.swift` | iCloud 備份與還原的流程：上傳閘門、打包快照、對應截圖、暫存還沒找到的截圖（見 [storage.md §7](storage.md#7-icloud-備份與還原)） |
 | | `BackupRemote.swift` | `CloudKitBackupRemote`：私有資料庫裡兩個輪流覆寫的快照 record |
 | | `PendingRestoreStore.swift` | 讀寫 `pending-restore.json` |
 | | `TextRecognizer.swift` | `VisionScreenRecognizer`：繁中 + 英文 OCR、條碼偵測，在 detached task 執行 |
-| `Views/Shell/` | `AppShell.swift` | Tab 切換、TabBar / BatchBar、疊上詳細頁、SheetHost、NameDialog、Toast |
-| | `Sheets.swift` | 「移到資料夾」「標籤」「設定」sheet 與命名對話框 |
+| `Views/Shell/` | `AppShell.swift` | Tab 切換、TabBar / BatchBar、疊上詳細頁、SheetHost、NameDialog / DeleteShotsDialog、Toast |
+| | `Sheets.swift` | 「移到資料夾」「標籤」「設定」sheet、共用的 `SheetRow` 與命名對話框 |
+| | `DeleteShotsDialog.swift` | 刪除截圖對話框：連同相簿一起刪除／只從 App 移除／取消，可記住選擇 |
 | `Views/Settings/` | `BackupSection.swift` | 設定 sheet 的 iCloud 備份區塊（從資料夾 tab 右上角齒輪開啟） |
+| | `DeletePreferenceSection.swift` | 設定 sheet 的刪除截圖區塊：每次詢問／連同相簿一起刪除／只從 App 移除 |
 | `Views/Library/` | `ShotGridScreen.swift` 等 | 四個 tab 的畫面（見各 spec） |
 | `Views/Detail/` | `ShotDetailScreen.swift`、`ShotPage.swift` | 詳細頁與單頁（含文字區塊選取） |
 | `Views/Onboarding/` | `OnboardingView.swift` | 歡迎 → 權限 →（還原 iCloud 備份）→ 匯入 |
@@ -129,9 +134,9 @@ View 操作 ──ui.xxx──▶ UIState（導航、選取、sheet、toast）
 
 規則：
 
-- **Views 不直接碰 `PhotoLibraryService`**，唯一例外是 `AssetImage` 讀縮圖、`ShotImage` 分享原圖。
+- **Views 不直接碰 `PhotoLibraryService`**，唯一例外是 `AssetImage` 讀縮圖、`ShotImage` 分享原圖；刪除原檔也經過 `store.delete`。
 - **所有資料修改都走 `store.mutate`**，規則寫在 `Library` 的 mutating 方法裡。
-- **導航狀態集中在 `UIState`**，sheet 透過 `ui.sheetTargets` 知道要作用在批次選取還是詳細頁目前這張。
+- **導航狀態集中在 `UIState`**，sheet 與刪除對話框透過 `ui.targets(for:)`（sheet 用 `ui.sheetTargets`）知道要作用在批次選取還是詳細頁目前這張。
 
 ### 1.4 截圖的生命週期
 
@@ -142,12 +147,13 @@ View 操作 ──ui.xxx──▶ UIState（導航、選取、sheet、toast）
 | 自動判斷不出來 | `placement == .auto`，`source == nil` | 未分類；`isRefined == false` 的會在背景用 Apple Intelligence 補判 |
 | 使用者放入（鎖定） | `placement == .user` | 使用者選的資料夾（或未分類）；之後永不自動重分類 |
 | 從 App 移除 | id 在 `hiddenShotIDs` | 哪裡都不出現；同步也不會加回，Photos 原檔保留 |
+| 連同相簿一起刪除 | 原檔已移到「照片」的「最近刪除」 | 同步後從 Library 移除（不寫進 `hiddenShotIDs`）；在「照片」復原後，下次同步會以處理中重新加入 |
 
 自動分類的完整規則見 [classification.md](classification.md)。OCR 失敗會在下一輪重試，最多 3 次（`Shot.maxRecognitionAttempts`），之後當作沒有文字直接分類。`ClassificationPipeline.version` 調高時，App 啟動會把舊版本自動分類的截圖送回處理中重新分類（使用者放入的不動）。
 
 ### 1.5 匯入與檔案處理
 
-App 不複製、不搬移、不修改任何照片檔案，只讀取 Photos，並在自己的索引裡記錄結果。
+App 不複製、不搬移、不修改任何照片檔案，只讀取 Photos，並在自己的索引裡記錄結果。唯一的寫入是使用者選擇「連同相簿一起刪除」時，透過 `PHAssetChangeRequest.deleteAssets` 把原檔移到「最近刪除」（iOS 會先跳系統確認）。
 
 | 資料 | 怎麼取得 | 放在哪 |
 |------|------|------|
@@ -191,8 +197,9 @@ App 不複製、不搬移、不修改任何照片檔案，只讀取 Photos，並
 | 用圖中文字找 | 搜尋 tab 輸入關鍵字 | [搜尋 tab](spec/tab-search.md) |
 | 看大圖、左右翻、複製文字、分享 | 任一列表點截圖進詳細頁 | [共用規格 §1](spec/shared-detail-and-sheets.md#1-詳細頁shotdetailscreen) |
 | 改一張的資料夾或標籤 | 詳細頁下方資訊列 | [共用規格 §2](spec/shared-detail-and-sheets.md#2-移到資料夾-sheet) |
-| 一次整理很多張 | 截圖 tab 或任一資料夾／標籤 grid 按「選取」→ 下方批次列 | [共用規格 §4](spec/shared-detail-and-sheets.md#4-批次列batchbar) |
-| 從 App 移除 | 批次選取 → 垃圾桶（相簿原檔保留） | 同上 |
+| 一次整理很多張 | 截圖 tab 或任一資料夾／標籤 grid 按「選取」→ 下方批次列 | [共用規格 §5](spec/shared-detail-and-sheets.md#5-批次列batchbar) |
+| 刪除截圖 | 批次選取或詳細頁 → 垃圾桶 →「連同相簿一起刪除」或「只從 App 移除」 | [共用規格 §8](spec/shared-detail-and-sheets.md#8-刪除截圖deleteshotsdialog) |
+| 不再每次詢問刪除方式 | 刪除對話框勾「記住這個選擇」，或資料夾 tab 右上角齒輪 → 設定 → 刪除截圖 | [共用規格 §9](spec/shared-detail-and-sheets.md#9-設定-sheet) |
 
 ### 2.3 背景與同步
 
@@ -200,7 +207,7 @@ App 不複製、不搬移、不修改任何照片檔案，只讀取 Photos，並
 - 在任一截圖 grid 下拉可手動更新：在背景重新讀取相簿後同步（見 [截圖 tab §2.5](spec/tab-screenshots.md#25-下拉更新)）。
 - 部分照片權限時，截圖 tab 與資料夾 tab 頂端顯示提示，可「選取更多截圖」或「前往設定」。
 - 開啟某張處理中截圖的詳細頁時，它會被插到佇列最前面。
-- App 進背景時備份到 iCloud（內容沒變就不上傳）；資料夾 tab 右上角齒輪 → 設定，可以立即備份或從備份還原。
+- App 進背景時備份到 iCloud（內容沒變就不上傳）；資料夾 tab 右上角齒輪 → 設定，可以立即備份或從備份還原，也可以改刪除截圖的方式。
 - 還原時還沒出現在這台裝置的截圖（例如 iCloud 照片還在下載），之後每次相簿變更都會再比對一次，最多 30 天。
 
 ---
@@ -214,14 +221,14 @@ albumOrganizer/
 │  ├─ Info.plist                    照片權限說明、自訂字型、淺色模式
 │  └─ ScreenshotOrganizer/
 │     ├─ App/                       進入點與 RootView
-│     ├─ Store/                     LibraryStore、UIState、DetailSession
+│     ├─ Store/                     LibraryStore、UIState、DetailSession、DeletionSettings、ShotDeletion
 │     ├─ Services/                  Photos、處理佇列、Vision、學習層的訓練排程、iCloud 備份
 │     ├─ Views/
-│     │  ├─ Shell/                  AppShell、TabBar、BatchBar、Toast、Sheets、NameDialog
+│     │  ├─ Shell/                  AppShell、TabBar、BatchBar、Toast、Sheets、NameDialog、DeleteShotsDialog
 │     │  ├─ Library/                ShotGridScreen、FoldersScreen、TagsScreen、SearchScreen
 │     │  ├─ Detail/                 ShotDetailScreen、ShotPage
 │     │  ├─ Onboarding/
-│     │  ├─ Settings/               設定 sheet 的 iCloud 備份區塊
+│     │  ├─ Settings/               設定 sheet 的 iCloud 備份與刪除截圖區塊
 │     │  └─ Common/                 AssetImage、LimitedAccessBanner、ShotFormat
 │     ├─ Theme/                     Palette、Typeface、Space、Radius、元件、按鈕樣式
 │     └─ Resources/Fonts/           Lora、Cormorant Garamond、Noto Serif TC（OFL）
