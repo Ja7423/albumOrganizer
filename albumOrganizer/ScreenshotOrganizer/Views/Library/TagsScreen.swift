@@ -16,7 +16,7 @@ struct TagsScreen: View {
                         Button(editing ? "完成" : "編輯") { editing.toggle() }
                             .buttonStyle(.ghost)
                             .disabled(lib.tags.isEmpty && !editing)
-                        Button { ui.dialog = .newTag } label: {
+                        Button { ui.dialog = .name(.newTag) } label: {
                             Image(systemName: "plus").font(.system(size: 15, weight: .medium))
                             Text("新增")
                         }

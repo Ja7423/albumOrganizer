@@ -4,6 +4,7 @@ import SwiftUI
 struct ScreenshotOrganizerApp: App {
     @State private var store = LibraryStore()
     @State private var ui = UIState()
+    @State private var deletion = DeletionSettings()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -11,6 +12,7 @@ struct ScreenshotOrganizerApp: App {
             RootView()
                 .environment(store)
                 .environment(ui)
+                .environment(deletion)
                 .preferredColorScheme(.light)
                 .tint(Palette.accent)
         }

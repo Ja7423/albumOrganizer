@@ -103,7 +103,7 @@ private struct MoveSheetContent: View {
             ForEach(lib.folders) { folder in
                 row(name: folder.name, icon: "folder", count: lib.count(in: .folder(folder.id)), isCurrent: detailShot?.folderID == folder.id) { move(to: folder.id) }
             }
-            Button { ui.dialog = .newFolder(moveAfter: true) } label: {
+            Button { ui.dialog = .name(.newFolder(moveAfter: true)) } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "folder.badge.plus").font(.system(size: 17))
                     Text("新增資料夾").font(Typeface.body(16))
@@ -217,7 +217,7 @@ private struct TagSheetContent: View {
 struct NameDialog: View {
     @Environment(LibraryStore.self) private var store
     @Environment(UIState.self) private var ui
-    let kind: UIState.Dialog
+    let kind: UIState.NameDialogKind
     @State private var name = ""
     @FocusState private var focused: Bool
 

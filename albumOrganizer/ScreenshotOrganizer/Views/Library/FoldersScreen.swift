@@ -15,7 +15,7 @@ struct FoldersScreen: View {
                     }
                     .buttonStyle(.ghost)
                     .accessibilityLabel("iCloud 備份")
-                    Button { ui.dialog = .newFolder(moveAfter: false) } label: {
+                    Button { ui.dialog = .name(.newFolder(moveAfter: false)) } label: {
                         Image(systemName: "plus").font(.system(size: 15, weight: .medium))
                         Text("新增")
                     }
@@ -35,7 +35,7 @@ struct FoldersScreen: View {
                               isDimmed: shots.isEmpty && folder.builtIn != nil)
                         .contextMenu {
                             Button {
-                                ui.dialog = .renameFolder(folder.id)
+                                ui.dialog = .name(.renameFolder(folder.id))
                             } label: {
                                 Label("重新命名", systemImage: "pencil")
                             }
